@@ -12,6 +12,7 @@ use Tk::LabFrame;
 # Get files from the command line, if supplied
 
 my @dots = @ARGV;
+my $async = 1;
 
 my $inputDir = "graphs/directed";
 
@@ -31,9 +32,14 @@ my $mw = new MainWindow ();
 my $topFrame = $mw->Frame;
 $topFrame->pack(-side => 'top', -fill => 'both', -expand => 1 );
 
-# left image, including a label
-my $leftFrame = $topFrame->LabFrame(-label => 'Dot-Generated GIF Image', -labelside => 'top', -relief => 'sunken');
-$leftFrame->packAdjust(-fill => 'both', -expand => 1,  side => 'left', -delay => 1 );
+# left image, including a label (We don't use a LabFrame here, because
+# it doesn't appear to work with packAdjust
+#    (At least on the test platform tk804.027 and Perl 5.8.4
+my $leftFrame = $topFrame->Frame(-relief => 'sunken');
+my $leftLabel = $leftFrame->Label(-text => "Dot-Generated GIF Image")
+  ->pack ( -side => 'top' );
+$leftFrame->packAdjust ( -fill => 'both', -expand => 1,
+			 -side => 'left', -delay => 1 );
 
 # right image, including a label
 my $rightFrame = $topFrame->LabFrame(-label => 'Tk::GraphViz-Generated Canvas', -labelside => 'top', -relief => 'sunken');
@@ -61,7 +67,7 @@ my $gv = $rightFrame->Scrolled ( 'GraphViz',
   ->pack ( -expand => '1', -fill => 'both', -side => 'right' );
 
 $gv->createBindings();
-$gv->show($currentFile);
+$gv->show($currentFile, async => $async);
 
 my $buttonFrame = $mw->Frame();
 
@@ -87,7 +93,7 @@ $nextButton->configure( -command =>
 		$statusLabel->configure(-text => "Generating Tk::GraphViz Canvas for $currentFile ...");
 		$mw->update;
 
-		$gv->show($currentFile);
+		$gv->show($currentFile, async => $async);
 		
 		$statusLabel->configure(-text => $currentFile);
 

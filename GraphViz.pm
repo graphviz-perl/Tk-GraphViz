@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.07';
+$Tk::GraphViz::VERSION = '0.13';
 
 package Tk::GraphViz;
 
@@ -15,8 +15,13 @@ use Tk::GraphViz::parseRecordLabel;
 use base qw(Tk::Derived Tk::Canvas);
 
 #use warnings;
-use IO;
+use IO qw(Handle File Pipe);
 use Carp;
+use reaper qw( reapPid pidStatus );
+
+use IPC::Open3;
+use POSIX qw( :sys_wait_h :errno_h );
+use Fcntl;
 
 
 # Initialize as a derived Tk widget
@@ -49,7 +54,7 @@ sub Populate
 
   # Default resolution, for scaling
   $self->{dpi} = 72;
-  $self->{margin} = .10;
+  $self->{margin} = .15;
 
   # Keep track of fonts used, so they can be scaled
   # when the canvas is scaled
@@ -73,25 +78,176 @@ sub show
 
   die __PACKAGE__.": Nothing to show" unless defined $graph;
 
-  # Get new layout info from the given graph
-  my @layout = $self->_layoutGraph ( $graph, %opt );
+  # Layout is actually done in the background, so the graph
+  # will get updated when the new layout is ready
+  $self->_startGraphLayout ( $graph, %opt );
+}
+
+
+######################################################################
+# Begin the process of creating the graph layout.
+# Layout is done with a separate process, and it can be time
+# consuming.  So allow the background task to run to completion
+# without blocking this process.  When the layout task is complete,
+# the graph display is actually updated.
+######################################################################
+sub _startGraphLayout
+{
+  my ($self, $graph, %opt) = @_;
+
+  my ($filename,$delete_file) = $self->_createDotFile ( $graph, %opt );
+
+  # If a previous layout process is running, it needs to be killed
+  $self->_stopGraphLayout( %opt );
+
+  $self->{layout} = [];
+
+  if ( ($self->{layout_process} =
+	$self->_startDot ( $filename, delete_file => $delete_file,
+			   %opt )) ) {
+    $self->{layout_process}{filename} = $filename;
+    $self->{layout_process}{delete_file} = $delete_file;
+    $self->{layout_process}{opt} = \%opt;
+    $self->_checkGraphLayout ();
+  } else {
+    $self->_showGraphLayout( %opt );
+  }
+}
+
+
+######################################################################
+# Stop a layout task running in the background.
+# It is important to do a waitpid() on all the background processes
+# to prevent them from becoming orphans/zombies
+######################################################################{
+sub _stopGraphLayout
+{
+  my ($self, %opt) = @_;
+
+  my $proc = $self->{layout_process};
+  return 0 unless defined $proc;
+
+  if ( defined $proc->{pid} ) {
+    my @sig = qw( TERM TERM TERM TERM KILL );
+    for ( my $i = 0; $i < 5; ++$i ) {
+      kill $sig[$i], $proc->{pid};
+      if ( $self->_checkGraphLayout( noafter => 1 ) ) {
+	sleep $i+1;
+      }
+    }
+  }
+
+  unlink $proc->{filename} if ( $proc->{delete_file} );
+  delete $self->{layout_process};
+}
+
+
+######################################################################
+# Check whether the background layout task has finished
+# Also reads any available output the command has generated to
+# this point.
+# If the command is not finished, schedules for this method to be
+# called again in the future, after some period.
+######################################################################
+sub _checkGraphLayout
+{
+  my ($self, %opt) = @_;
+
+  my $proc = $self->{layout_process};
+  if ( !defined $proc ) { return 0; }
+
+  if ( !defined $proc->{pid} ) { return 0; }
+
+  my $finished = 0;
+  if ( defined(my $stat = pidStatus($proc->{pid})) ) {
+    # Process has exited
+    if ( $stat == 0xff00 ) {
+      $proc->{error} = "exec failed";
+    }
+    elsif ( $stat > 0x80 ) {
+      $stat >>= 8;
+    }
+    else {
+      if ( $stat & 0x80 ) {
+	$stat &= ~0x80;
+	$proc->{error} = "Killed by signal $stat (coredump)";
+      } else {
+	$proc->{error} = "Kill by signal $stat";
+      }
+    }
+    $proc->{status} = $stat;
+    $finished = 1;
+  }
+
+  else {
+    my $kill = kill ( 0 => $proc->{pid} );
+    if ( !$kill ) {
+      $proc->{status} = 127;
+      $proc->{error} = "pid $proc->{pid} gone, but no status!";
+      $finished = 1;
+    }
+  }
+
+  # Read available output...
+  $self->_readGraphLayout ();
+
+
+  # When finished, show the new contents
+  if ( $finished ) {
+    $proc->{pid} = undef;
+    $self->_stopGraphLayout();
+
+    $self->_showGraphLayout ( %{$proc->{opt}} );
+    return 0;
+  }
+
+  else {
+    # Not yet finished, so schedule to check again soon
+    if ( !defined($opt{noafter}) || !$opt{noafter} ) {
+      my $checkDelay = 500;
+      if ( defined($proc->{goodread}) ) { $checkDelay = 0; }
+      $self->after ( $checkDelay, sub { $self->_checkGraphLayout(%opt); } );
+    }
+
+    return 1;
+  }
+}
+
+
+######################################################################
+# Display the new graph layout.
+# This is called once the layout of the graph has been completed.
+# The layout data itself is stored as a list layout elements,
+# typically read directly from the background layout task
+######################################################################
+sub _showGraphLayout
+{
+  my ($self, %opt) = @_;
 
   # Erase old contents
-  $self->delete ( 'all' );
+  unless ( defined $opt{keep} && $opt{keep} ) {
+    $self->delete ( 'all' );
+    delete $self->{fonts}{_default} if exists $self->{fonts}{_default};
+  }
 
   # Display new contents
-  $self->_parseLayout ( \@layout, %opt );
+  $self->_parseLayout ( $self->{layout}, %opt );
 
   # Update scroll-region to new bounds
   $self->_updateScrollRegion( %opt );
+
+  if ( defined $opt{fit} && $opt{fit} ) {
+    $self->fit();
+  }
 
   1;
 }
 
 
+
 ######################################################################
-# Turn the given graph description into a graphviz 'text'
-# output that contains all the pertinent layout info.
+# Create a (temporary) file on disk containing the graph
+# in canonical GraphViz/dot format.
 #
 # '$graph' can be
 # - a GraphViz instance
@@ -101,25 +257,8 @@ sub show
 #   (contents will be read and converted to a scalar)
 # - a filename giving a file that contains a graph in dot format
 #
-# Returns the layout output as a list of lines
-######################################################################
-sub _layoutGraph
-{
-  my ($self, $graph, %opt) = @_;
-
-  my ($filename,$delete_file) = $self->_createDotFile ( $graph, %opt );
-
-  my @layout = $self->_dot2layout ( $filename, %opt );
-
-  unlink $filename if ( $delete_file );
-
-  @layout;
-}
-
-
-######################################################################
-# Create a (temporary) file on disk containing the graph
-# in canonical GraphViz/dot format.
+# Returns a filename that contains the DOT description for the graph,
+# and an additional flag to indicate if the file is temprary
 ######################################################################
 sub _createDotFile
 {
@@ -131,7 +270,8 @@ sub _createDotFile
   my $ref = ref($graph);
   if ( $ref ne '' ) {
     # A blessed reference
-    if ( UNIVERSAL::can( $graph, 'as_canon') ) { #$ref->isa('GraphViz') ) {
+    if ( $ref->isa('GraphViz') ||
+	 UNIVERSAL::can( $graph, 'as_canon') ) {
       ($filename, my $fh) = $self->_mktemp();
       eval { $graph->as_canon ( $fh ); };
       if ( $@ ) {
@@ -153,7 +293,9 @@ sub _createDotFile
     # Not a blessed reference
 
     # Try it as a filename
-    if ( -r $graph ) {
+    # Skip the filename test if it has newlines
+    if ( $graph !~ /\n/m &&
+	 -r $graph ) {
       $filename = $graph;
       $delete_file = 0;
     }
@@ -180,29 +322,109 @@ sub _createDotFile
 # Create a temp file for writing, open a handle to it
 #
 ######################################################################
+{
+my $_mktemp_count = 0;
 sub _mktemp
 {
-  #my $filename = `mktemp /tmp/GraphViz.$$.XXXXXX.dot`;
-  my $filename = '/tmp/Tk::GraphViz.dot';
-  chomp($filename);
-  confess "Can't create temp file: $!"
-    if (!defined($filename) || $filename eq '');
+  my $tempDir = $ENV{TEMP} || $ENV{TMP} || '/tmp';
+  my $filename = sprintf ( "%s/Tk-GraphViz.dot.$$.%d.dot",
+			   $tempDir, $_mktemp_count++ );
   my $fh = new IO::File ( $filename, 'w' ) ||
     confess "Can't write temp file: $filename: $!";
+  binmode($fh);
   ($filename, $fh);
+}
 }
 
 
 ######################################################################
-# Convert a dot file to layout output format
+# Starting running 'dot' (or some other layout command) in the
+# background, to convert a dot file to layout output format.
 #
 ######################################################################
-sub _dot2layout
+sub _startDot
 {
   my ($self, $filename, %opt) = @_;
 
   confess "Can't read file: $filename" 
     unless -r $filename;
+
+  my $layout_cmd = $self->_makeLayoutCommand ( $filename, %opt );
+
+  # Simple, non-asynchronous mode: execute the
+  # process synchnronously and wait for all its output
+  if ( !defined($opt{async}) || !$opt{async} ) {
+    my $pipe = new IO::Pipe;
+    $pipe->reader ( $layout_cmd );
+    while ( <$pipe> ) { push @{$self->{layout}}, $_; }
+    if ( $opt{delete_file} ) {
+      unlink $filename;
+    }
+    return undef;
+  }
+
+  # Now execute it
+  my $in = new IO::Handle;
+  my $out = new IO::Handle;
+  $in->autoflush;
+
+  local $@ = undef;
+  my $proc = {};
+  my $ppid = $$;
+  eval {
+    $proc->{pid} = open3 ( $in, $out, \*STDERR, $layout_cmd );
+    reapPid ( $proc->{pid} );
+
+    # Fork failure?
+    exit(43) if ( $$ != $ppid );
+  };
+  if ( defined($@) && $@ ne '' ) {
+    $self->{error} = $@;
+  }
+
+  # Close stdin so child process sees eof on its input
+  $in->close;
+
+  $proc->{output} = $out;
+  $proc->{buf} = '';
+  $proc->{buflen} = 0;
+  $proc->{eof} = 0;
+
+  # Enable non-blocking reads on the output
+  $self->_disableBlocking ( $out );
+
+  return $proc;
+}
+
+
+######################################################################
+# $self->_disableBlocking ( $fh )
+#
+# Turn off blocking-mode for the given handle
+######################################################################
+sub _disableBlocking
+{
+  my ($self, $fh) = @_;
+
+  my $flags = 0;
+  fcntl ( $fh, &F_GETFL, $flags ) or
+    confess "Can't get flags for handle";
+  $flags = ($flags+0) | O_NONBLOCK;
+  fcntl ( $fh, &F_SETFL, $flags ) or
+    confess "Can't set flags for handle";
+
+  1;
+}
+
+
+######################################################################
+# Assemble the command for executing dot/neato/etc as a child process
+# to generate the layout.  The layout of the graph will be read from
+# the command's stdout
+######################################################################
+sub _makeLayoutCommand
+{
+  my ($self, $filename, %opt) = @_;
 
   my $layout_cmd = $opt{layout} || 'dot';
   my @opts = ();
@@ -240,13 +462,69 @@ sub _dot2layout
     }
   }
 
-  my $pipe = new IO::Pipe
-    or confess "Can't create pipe for dot: $!";
-  $pipe->reader("$layout_cmd @opts -Tdot $filename");
-  my @layout = <$pipe>;
-  $pipe->close;
+  return "$layout_cmd @opts -Tdot $filename";
+}
 
-  @layout;
+
+######################################################################
+# Read data from the background layout process, in a non-blocking
+# mode.  Reads all the data currently available, up to some reasonable
+# buffer size.
+######################################################################
+sub _readGraphLayout
+{
+  my ($self) = @_;
+
+  my $proc = $self->{layout_process};
+  if ( !defined $proc ) { return; }
+
+  delete $proc->{goodread};
+  my $rv = sysread ( $proc->{output}, $proc->{buf}, 10240,
+		     $proc->{buflen} );
+  if ( !defined($rv) && $! == EAGAIN ) {
+    # Would block, don't do anything right now
+    return;
+  }
+
+  elsif ( $rv == 0 ) {
+    # 0 bytes read -- EOF
+    $proc->{eof} = 1;
+    return;
+  }
+
+  else {
+    $proc->{buflen} += $rv;
+    $proc->{goodread} = 1;
+  }
+
+
+  # Go ahead and split the output that's available now,
+  # so that this part at least is potentially spread out in time
+  # while the background process keeps running.
+  $self->_splitGraphLayout ();
+}
+
+
+######################################################################
+# Split the buffered data read from the background layout task
+# into individual lines
+######################################################################
+sub _splitGraphLayout
+{
+  my ($self) = @_;
+
+  my $proc = $self->{layout_process};
+  if ( !defined $proc ) { return; }
+
+  my @lines = split ( /\n/, $proc->{buf} );
+  
+  # If not at eof, keep the last line in the buffer
+  if ( !$proc->{eof} ) {
+    $proc->{buf} = pop @lines;
+    $proc->{buflen} = length($proc->{buf});
+  }
+
+  push @{$self->{layout}}, @lines;
 }
 
 
@@ -269,14 +547,18 @@ sub _parseLayout
   my $accum = undef;
 
   foreach ( @$layoutLines ) {
+    s/\r//g;  # get rid of any returns ( does text files)
+
     chomp;
 
-    # Handle line-continuation that gets put in for longer lines...
+    # Handle line-continuation that gets put in for longer lines,
+    # as well as lines that are continued with commas at the end
     if ( defined $accum ) {
       $_ = $accum . $_;
       $accum = undef;
     }
-    if ( s/\\$// ) {
+    if ( s/\\\s*$// ||
+         /\,\s*$/ ) {
       $accum = $_;
       next;
     }
@@ -1094,8 +1376,14 @@ sub _scaleAndMoveView
     my $font = $fonts->{$fontName}{font};
     my $origSize = $fonts->{$fontName}{origSize};
 
+    # Flag to indicate size is negative (i.e. specified in pixels)
+    my $negativeSize = $origSize < 0 ? -1 : 1;
+    $origSize = abs($origSize); # Make abs value for finding scale
+
     # Fonts can't go below size 2, or they suddenly jump up to size 6...
     my $newSize = max(2,int( $origSize*$new_scaled + 0.5));
+
+    $newSize *= $negativeSize;
 
     $font->configure ( -size => $newSize );
     #print "Font '$fontName' Origsize = $origSize, newsize $newSize, actual size ".$font->actual(-size)."\n";
@@ -1482,9 +1770,11 @@ sub fit
   my $w = $self->width();
   my $h = $self->height();
   my ($x1,$y1,$x2,$y2) = $self->bbox( $idOrTag );
+  return 0 unless ( defined $x1 && defined $x2 &&
+		    defined $y1 && defined $y2 );
+
   my $dx = abs($x2 - $x1);
   my $dy = abs($y2 - $y1);
-  return 0 unless defined $x1;
 
   my $scalex = $w / $dx;
   my $scaley = $h / $dy;
