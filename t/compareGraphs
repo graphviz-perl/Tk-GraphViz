@@ -60,6 +60,7 @@ my $gv = $rightFrame->Scrolled ( 'GraphViz',
 			 -scrollbars => 'osoe' )
   ->pack ( -expand => '1', -fill => 'both', -side => 'right' );
 
+$gv->createBindings();
 $gv->show($currentFile);
 
 my $buttonFrame = $mw->Frame();

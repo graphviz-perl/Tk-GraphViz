@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.05';
+$Tk::GraphViz::VERSION = '0.06';
 
 package Tk::GraphViz;
 
@@ -69,21 +69,21 @@ sub Populate
 ######################################################################
 sub show
 {
-  my ($self, $graph) = @_;
+  my ($self, $graph, %opt) = @_;
 
   die __PACKAGE__.": Nothing to show" unless defined $graph;
 
   # Get new layout info from the given graph
-  my @layout = $self->_layoutGraph ( $graph );
+  my @layout = $self->_layoutGraph ( $graph, %opt );
 
   # Erase old contents
   $self->delete ( 'all' );
 
   # Display new contents
-  $self->_parseLayout ( \@layout );
+  $self->_parseLayout ( \@layout, %opt );
 
   # Update scroll-region to new bounds
-  $self->_updateScrollRegion();
+  $self->_updateScrollRegion( %opt );
 
   1;
 }
@@ -105,11 +105,11 @@ sub show
 ######################################################################
 sub _layoutGraph
 {
-  my ($self, $graph) = @_;
+  my ($self, $graph, %opt) = @_;
 
-  my ($filename,$delete_file) = $self->_createDotFile ( $graph );
+  my ($filename,$delete_file) = $self->_createDotFile ( $graph, %opt );
 
-  my @layout = $self->_dot2layout ( $filename );
+  my @layout = $self->_dot2layout ( $filename, %opt );
   unlink $filename if ( $delete_file );
 
   @layout;
@@ -122,7 +122,7 @@ sub _layoutGraph
 ######################################################################
 sub _createDotFile
 {
-  my ($self, $graph) = @_;
+  my ($self, $graph, %opt) = @_;
 
   my $filename = undef;
   my $delete_file = undef;
@@ -198,14 +198,51 @@ sub _mktemp
 ######################################################################
 sub _dot2layout
 {
-  my ($self, $filename) = @_;
+  my ($self, $filename, %opt) = @_;
 
   confess "Can't read file: $filename" 
     unless -r $filename;
 
   my $pipe = new IO::Pipe
     or confess "Can't create pipe for dot: $!";
-  $pipe->reader("dot -Tdot $filename");
+
+  my $layout_cmd = $opt{layout} || 'dot';
+  my @opts = ();
+
+  if ( defined $opt{graphattrs} ) {
+    # Add -Gname=value settings to command line
+    my $list = $opt{graphattrs};
+    my $ref = ref($list);
+    die __PACKAGE__.": Expected array reference for graphattrs"
+      unless defined $ref && $ref eq 'ARRAY';
+    while ( my ($key, $val) = splice @$list, 0, 2 ) {
+      push @opts, "-G$key=\"$val\"";
+    }
+  }
+
+  if ( defined $opt{nodeattrs} ) {
+    # Add -Gname=value settings to command line
+    my $list = $opt{nodeattrs};
+    my $ref = ref($list);
+    die __PACKAGE__.": Expected array reference for nodeattrs"
+      unless defined $ref && $ref eq 'ARRAY';
+    while ( my ($key, $val) = splice @$list, 0, 2 ) {
+      push @opts, "-N$key=\"$val\"";
+    }
+  }
+
+  if ( defined $opt{edgeattrs} ) {
+    # Add -Gname=value settings to command line
+    my $list = $opt{edgeattrs};
+    my $ref = ref($list);
+    die __PACKAGE__.": Expected array reference for edgeattrs"
+      unless defined $ref && $ref eq 'ARRAY';
+    while ( my ($key, $val) = splice @$list, 0, 2 ) {
+      push @opts, "-E$key=\"$val\"";
+    }
+  }
+
+  $pipe->reader("$layout_cmd @opts -Tdot $filename");
 
   my @layout = <$pipe>;
   $pipe->close;
@@ -221,7 +258,7 @@ sub _dot2layout
 ######################################################################
 sub _parseLayout
 {
-  my ($self, $layoutLines) = @_;
+  my ($self, $layoutLines, %opt) = @_;
 
   my $directed = 1;
   my %allNodeAttrs = ();
@@ -276,7 +313,7 @@ sub _parseLayout
       # End of a graph section
       if ( @saveStack ) {
 	# Subgraph
-	if ( defined($graphAttrs{bb}) ) {
+	if ( defined($graphAttrs{bb}) && $graphAttrs{bb} ne '' ) {
 	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
 	  $minX = min($minX,$x1);
 	  $minY = min($minY,$y1);
@@ -411,6 +448,10 @@ sub _createSubgraph
   my $label = $attrs{label};
   my $color = $attrs{color} || 'black';
 
+  # Want box to be filled with background color by default, so that
+  # it is 'clickable'
+  my $fill = $self->cget('-background');
+
   my $tags = [ subgraph => $label, %attrs ];
 
   # Get/Check a valid color
@@ -426,9 +467,8 @@ sub _createSubgraph
       @styleArgs = (-dash => '.');
     }
     elsif ( $style =~ /filled/ ) {
-      my $fillColor = ( defined($attrs{fillcolor})?
-			$self->tryColor($attrs{fillcolor}) :  $color );
-      push @styleArgs, (-fill => $fillColor);
+      $fill = ( defined($attrs{fillcolor})?
+		$self->_tryColor($attrs{fillcolor}) : $color );
     }
     elsif( $style =~ /bold/ ) {
       # Bold outline, gets wider line
@@ -439,21 +479,26 @@ sub _createSubgraph
   # Create the box if coords are defined
   if( $attrs{bb} ) {
     my $id = $self->createRectangle ( $x1, -1 * $y2, $x2, -1 * $y1,
-				      -outline => $color, @styleArgs,
+				      -outline => $color,
+				      -fill => $fill, @styleArgs,
 				      -tags => $tags );
     $self->lower($id); # make sure it doesn't obscure anything
   }
 
   # Create the label, if defined
-  if( $attrs{label} && $attrs{lp} ) {
-    my $lp = $attrs{lp};
+  if ( defined($attrs{label}) ) {
+    my $lp = $attrs{lp} || '';
     my ($x,$y) = split(/\s*,\s*/,$lp);
+    if ( $lp eq '' ) { ($x,$y) = ($x1, $y2); }
+
     $label =~ s/\\n/\n/g;
     $tags->[0] = 'subgraphlabel'; # Replace 'subgraph' w/ 'subgraphlabel'
     my @args = ( $x, -1 * $y,
 		 -text => $label,
 		 -tags => $tags );
     push @args, ( -state => 'disabled' );
+    if ( $lp eq '' ) { push @args, ( -anchor => 'nw' ); }
+
     $self->createText ( @args );
   }
 }
@@ -527,20 +572,24 @@ sub _createNode
 
   unless ( $shape eq 'record' ) {
     # Normal non-record node types
-    $self->_createShape ( $shape, $x1, -1*$y2, $x2, -1*$y1,
-			  $orient, @args, -tags => $tags );
+    $self->_createShapeNode ( $shape, $x1, -1*$y2, $x2, -1*$y1,
+			      $orient, @args, -tags => $tags );
+
+    $label = undef if ( $shape eq 'point' );
 
     # Node label
-    $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
-    @args = ( ($x1 + $x2)/2, -1*($y2 + $y1)/2, -text => $label,
-	      -anchor => 'center', -justify => 'center',
-	      -tags => $tags );
-    push @args, ( -state => 'disabled' );
-    $self->createText ( @args );
+    if ( defined $label ) {
+      $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
+      @args = ( ($x1 + $x2)/2, -1*($y2 + $y1)/2, -text => $label,
+		-anchor => 'center', -justify => 'center',
+		-tags => $tags );
+      push @args, ( -state => 'disabled' );
+      $self->createText ( @args );
+    }
   }
   else {
     # Record node types
-    $self->_createRecord ( $label, %attrs, tags => $tags );
+    $self->_createRecordNode ( $label, %attrs, tags => $tags );
   }
 
   # Return the bounding box of the node
@@ -552,85 +601,117 @@ sub _createNode
 # Create an item of a specific shape, generally used for creating
 # node shapes.
 ######################################################################
-sub _createShape
+my %polyShapes =
+  ( box => [ [ 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] ],
+    rect => [ [ 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] ],
+    rectangle => [ [ 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] ],
+    triangle => [ [ 0, .75 ], [ 0.5, 0 ], [ 1, .75 ] ],
+    invtriangle => [ [ 0, .25 ], [ 0.5, 1 ], [ 1, .25 ] ],
+    diamond => [ [ 0, 0.5 ], [ 0.5, 1.0 ], [ 1.0, 0.5 ], [ 0.5, 0.0 ] ],
+    pentagon => [ [ .5, 0 ], [ 1, .4 ], [ .75, 1 ], [ .25, 1 ], [ 0, .4 ] ],
+    hexagon => [ [ 0, .5 ], [ .33, 0 ], [ .66, 0 ],
+		 [ 1, .5 ], [ .66, 1 ], [ .33, 1 ] ],
+    septagon => [ [ .5, 0 ], [ .85, .3 ], [ 1, .7 ], [ .75, 1 ],
+		  [ .25, 1 ], [ 0, .7 ], [ .15, .3 ] ],
+    octagon => [ [ 0, .3 ], [ 0, .7 ], [ .3, 1 ], [ .7, 1 ],
+		 [ 1, .7 ], [ 1, .3 ], [ .7, 0 ], [ .3, 0 ] ],
+    trapezium => [ [ 0, 1 ], [ .21, 0 ], [ .79, 0 ], [ 1, 1 ] ],
+    parallelogram => [ [ 0, 1 ], [ .20, 0 ], [ 1, 0 ], [ .80, 1 ] ],
+    house => [ [ 0, .9 ], [ 0, .5 ], [ .5, 0 ], [ 1, .5 ], [ 1, .9 ] ],
+    invhouse => [ [ 0, .1 ], [ 0, .5 ], [ .5, 1 ], [ 1, .5 ], [ 1, .1 ] ],
+  );
+
+sub _createShapeNode
 {
-  my ($self, $shape, $x1, $y1, $x2, $y2,
-      $orient, %args) = @_;
+  my ($self, $shape, $x1, $y1, $x2, $y2, $orient, %args) = @_;
 
   #STDERR->printf ( "createShape: $shape ($x1,$y1) ($x2,$y2)\n" );
   my $id = undef;
 
-  if ( $shape eq 'box' ) {
-    if ( $orient == 0.0 ) {
-      $id = $self->createRectangle ( $x1, $y1, $x2, $y2, %args );
-    } else {
-      $id = $self->_createPolyShape ( [ [ 0, 0 ],
-					[ 0, 1 ],
-					[ 1, 1 ],
-					[ 1, 0 ] ],
-				      $x1, $y1, $x2, $y2, $orient, %args );
-    }
+  my @extraArgs = ();
+
+  # Special handling for recursive calls to create periphery shapes
+  # (for double-, triple-, etc)
+  my $periphShape = $args{_periph};
+  if ( defined $periphShape ) {
+    delete $args{_periph};
+
+    # Periphery shapes are drawn non-filled, so they are
+    # not clickable
+    push @extraArgs, ( -fill => undef, -state => 'disabled' );
+  };
+
+
+  # Simple shapes: defined in the polyShape hash
+  if ( exists $polyShapes{$shape} ) {
+    $id = $self->_createPolyShape ( $polyShapes{$shape}, 
+				    $x1, $y1, $x2, $y2, $orient,
+				    %args, @extraArgs );
   }
 
-  elsif ( $shape eq 'triangle' ) {
-    $id = $self->_createPolyShape ( [ [ 0, .75 ],
-				      [ 0.5, 0 ],
-				      [ 1, .75 ] ],
-				    $x1, $y1, $x2, $y2, $orient, %args );
-  }
+  # Other special-case shapes:
 
-  elsif ( $shape eq 'diamond' ) {
-    $id = $self->_createPolyShape ( [ [ 0, 0.5 ],
-				      [ 0.5, 1.0 ],
-				      [ 1.0, 0.5 ],
-				      [ 0.5, 0.0 ] ],
-				    $x1, $y1, $x2, $y2, $orient, %args );
-  }
-
-  elsif ( $shape eq 'octagon' ) {
-    $id = $self->_createPolyShape ( [ [ 0, .3 ],
-				      [ 0, .7 ],
-				      [ .3, 1 ],
-				      [ .7, 1 ],
-				      [ 1, .7 ],
-				      [ 1, .3 ],
-				      [ .7, 0 ],
-				      [ .3, 0 ] ],
-				    $x1, $y1, $x2, $y2, $orient, %args );
-  }
-
-  elsif ( $shape eq 'house' ) {
-    $id = $self->_createPolyShape ( [ [ 0, 1 ],
-				      [ 0, .5 ],
-				      [ .5, 0 ],
-				      [ 1, .5 ],
-				      [ 1, 1 ] ],
-				    $x1, $y1, $x2, $y2, $orient, %args );
-  }
-
-  elsif ( $shape eq 'doublecircle' ) {
+  elsif ( $shape =~ s/^double// ) {
     my $diam = max(abs($x2-$x1),abs($y2-$y1));
-    my $inset = max(2,$diam*.1);
-    $self->createOval ( $x1, $y1, $x2, $y2, %args );
-    $id = $self->createOval ( $x1+$inset, $y1+$inset,
-			       $x2-$inset, $y2-$inset, %args );
+    my $inset = max(2,min(5,$diam*.1));
+    return $self->_createShapeNode ( $shape, $x1, $y1, $x2, $y2, $orient,
+				     %args, _periph => [ 1, $inset ] );
+  }
+
+  elsif ( $shape =~ s/^triple// ) {
+    my $diam = max(abs($x2-$x1),abs($y2-$y1));
+    my $inset = min(5,$diam*.1);
+    return $self->_createShapeNode ( $shape, $x1, $y1, $x2, $y2, $orient,
+				     %args, _periph => [ 2, $inset ] );
   }
 
   elsif (  $shape eq 'plaintext' ) {
     # Don't draw an outline for plaintext
-    return undef;
+    $id = 0;
   }
 
-  elsif ( $shape eq '' || $shape eq 'ellipse' || $shape eq 'circle' ) {
-    # Default shape = oval
+  elsif ( $shape eq 'point' ) {
+    # Draw point as a small oval
+    $shape = 'oval';
+  }
+
+  elsif ( $shape eq 'ellipse' || $shape eq 'circle' ) {
+    $shape = 'oval';
+  }
+
+  elsif ( $shape eq '' ) {
+    # Default shape = ellipse
+    $shape = 'oval';
   }
 
   else {
-    warn __PACKAGE__.": Unsupported shape type: '$shape', using oval";
+    warn __PACKAGE__.": Unsupported shape type: '$shape', using box";
   }
 
   if ( !defined $id ) {
-    $id = $self->createOval ( $x1, $y1, $x2, $y2, %args );
+    if ( $shape eq 'oval' ) {
+      $id = $self->createOval ( $x1, $y1, $x2, $y2, %args, @extraArgs );
+    } else {
+      $id = $self->createRectangle ( $x1, $y1, $x2, $y2, %args, @extraArgs );
+    }
+  }
+
+  # Need to create additional periphery shapes?
+  if ( defined $periphShape ) {
+    # This method of stepping in a fixed ammount in x and y is not
+    # correct, because the aspect of the overall shape changes...
+    my $inset = $periphShape->[1];
+    $x1 += $inset;
+    $y1 += $inset;
+    $x2 -= $inset;
+    $y2 -= $inset;
+    if ( --$periphShape->[0] > 0 ) { 
+      @extraArgs = ( _periph => $periphShape );
+    } else {
+      @extraArgs = ();
+    }
+    return $self->_createShapeNode ( $shape, $x1, $y1, $x2, $y2, $orient,
+				     %args, @extraArgs );
   }
 
   $id;
@@ -689,7 +770,7 @@ sub _createPolyShape
 ######################################################################
 # Draw the node record shapes
 ######################################################################
-sub _createRecord
+sub _createRecordNode
 {
   my ($self, $label, %attrs) = @_;
 
@@ -1009,7 +1090,10 @@ sub _scaleAndMoveView
   foreach my $fontName ( keys %$fonts ) {
     my $font = $fonts->{$fontName}{font};
     my $origSize = $fonts->{$fontName}{origSize};
-    my $newSize = int( $origSize*$new_scaled + 0.5);
+
+    # Fonts can't go below size 2, or they suddenly jump up to size 6...
+    my $newSize = max(2,int( $origSize*$new_scaled + 0.5));
+
     $font->configure ( -size => $newSize );
     #print "Font '$fontName' Origsize = $origSize, newsize $newSize, actual size ".$font->actual(-size)."\n";
   }
@@ -1651,7 +1735,7 @@ Once the items have been created in the graph, they can be used like any normal 
 
 =head1 METHODS
 
-=head2 $gv->show ( graph )
+=head2 $gv->show ( graph, ?opt => val, ...? )
 
 Renders the given graph in the canvas.  The graph itself can be specified in a number of formats.  'graph' can be one of the following:
 
@@ -1666,6 +1750,34 @@ Renders the given graph in the canvas.  The graph itself can be specified in a n
 =item - The name / path of a file that contains a graph in DOT format.
 
 =back
+
+show() will recognize some options that control how the graph is rendered, etc.  The recognized options:
+
+=over 4
+
+=item layout => CMD
+
+Specifies an alternate command to invoke to generate the layout of the graph.  If not given, then default is 'dot'.  This can be used, for example, to use 'neato' instead of 'dot'.
+
+=item graphattrs => [ name => value, ... ]
+
+Allows additional default graph attributes to be specified.  Each name => value pair will be passed to dot as '-Gname=value' on the command-line.
+
+=item nodeattrs => [ name => value, ... ]
+
+Allows additional default node attributes to be specified.  Each name => value pair will be passed to dot as '-Nname=value' on the command-line.
+
+=item edgeattrs => [ name => value, ... ]
+
+Allows additional default edge attributes to be specified.  Each name => value pair will be passed to dot as '-Ename=value' on the command-line.
+
+=back
+
+For example, to use neato to generate a layout with non-overlapping nodes and spline edges:
+
+    $gv->show ( $file, layout => 'neato',
+                graphattrs => [qw( overlap false spline true )] );
+
 
 =head2 $gv->createBindings ( ?option => value? )
 
@@ -1767,8 +1879,6 @@ The following example creates a GraphViz widgets to display a graph from a file 
 
 
 =head1 BUGS AND LIMITATIONS
-
-Currently only uses B<dot> for layout.  B<neato> is not supported.
 
 Lots of DOT language features not yet implemented
 
