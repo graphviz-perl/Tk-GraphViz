@@ -1,4 +1,4 @@
-Tk/GraphViz version 0.01
+Tk/GraphViz version 0.07
 ========================
 
 INSTALLATION
@@ -12,9 +12,7 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module requires the 'dot' program that is a part.  It may also be used in conjuction with the GraphViz module by Leon Brocard.
-
-Being a Tk widget, Tk is required as well.
+This module requires the 'dot' program that is a part of 'graphviz'(http://www.graphviz.org/).  It may also be used in conjuction with the GraphViz module by Leon Brocard.  Being a Tk widget, Tk is required as well.  GraphViz and Tk are can be found at CPAN (http://www.cpan.org/).
 
 
 COPYRIGHT AND LICENCE

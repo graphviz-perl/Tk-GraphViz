@@ -1,5 +1,9 @@
 Revision history for Perl extension Tk::GraphViz.
 
+0.07  Thu Sep 18 09:53:16 2003
+	- Minor clean-up of some warnings and such
+	- Doc updates
+
 0.06  Wed Mar  5 23:54:55 2003
 	- Supports more shape types, still not all of them though
 	- Added options to show() to allow use of neato for layout

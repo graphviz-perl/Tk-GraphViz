@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.06';
+$Tk::GraphViz::VERSION = '0.07';
 
 package Tk::GraphViz;
 
@@ -110,6 +110,7 @@ sub _layoutGraph
   my ($filename,$delete_file) = $self->_createDotFile ( $graph, %opt );
 
   my @layout = $self->_dot2layout ( $filename, %opt );
+
   unlink $filename if ( $delete_file );
 
   @layout;
@@ -130,7 +131,7 @@ sub _createDotFile
   my $ref = ref($graph);
   if ( $ref ne '' ) {
     # A blessed reference
-    if ( $ref->isa('GraphViz') ) {
+    if ( UNIVERSAL::can( $graph, 'as_canon') ) { #$ref->isa('GraphViz') ) {
       ($filename, my $fh) = $self->_mktemp();
       eval { $graph->as_canon ( $fh ); };
       if ( $@ ) {
@@ -203,9 +204,6 @@ sub _dot2layout
   confess "Can't read file: $filename" 
     unless -r $filename;
 
-  my $pipe = new IO::Pipe
-    or confess "Can't create pipe for dot: $!";
-
   my $layout_cmd = $opt{layout} || 'dot';
   my @opts = ();
 
@@ -242,8 +240,9 @@ sub _dot2layout
     }
   }
 
+  my $pipe = new IO::Pipe
+    or confess "Can't create pipe for dot: $!";
   $pipe->reader("$layout_cmd @opts -Tdot $filename");
-
   my @layout = <$pipe>;
   $pipe->close;
 
@@ -388,8 +387,8 @@ sub _parseLayout
   # canvas origin is top-left
   # Also include a bit of margin to ensure that everything fits within
   # the displayed area.
-  my $newW = abs($maxX - $minX);
-  my $newH = abs($maxY - $minY);
+  my $newW = defined($maxX)? abs($maxX - $minX) : 0.0;
+  my $newH = defined($maxY)? abs($maxY - $minY) : 0.0;
   my $marginX =  $newW * $self->{margin};
   my $marginY =  $newH * $self->{margin};
   #$self->move ( 'all', $marginX, $marginY + $newH );
@@ -677,6 +676,10 @@ sub _createShapeNode
 
   elsif ( $shape eq 'ellipse' || $shape eq 'circle' ) {
     $shape = 'oval';
+  }
+
+  elsif ( $shape eq 'oval' ) {
+
   }
 
   elsif ( $shape eq '' ) {
@@ -1720,7 +1723,7 @@ Tk::GraphViz - Render an interactive GraphViz graph
 
 =head1 SYNOPSIS
 
-    use Tk::Graphviz;
+    use Tk::GraphViz;
     my $gv = $mw->GraphViz ( qw/-width 300 -height 300/ )
       ->pack ( qw/-expand yes -fill both/ );
     $gv->show ( $dotfile );
@@ -1898,7 +1901,8 @@ Jeremy Slade E<lt>jeremy@jkslade.netE<gt>
 
 Other contributors:
 John Cerney,
-Slaven Rezic
+Slaven Rezic,
+Mike Castle
 
 =head1 COPYRIGHT AND LICENSE
 
