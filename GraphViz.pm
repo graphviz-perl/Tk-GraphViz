@@ -1,11 +1,16 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.04';
+$Tk::GraphViz::VERSION = '0.05';
 
 package Tk::GraphViz;
 
 use Tk 800.020;
+use Tk::Font;
+
+# Parse::Yapp-generated Parser for parsing record node labels
+use Tk::GraphViz::parseRecordLabel;
+
 
 use base qw(Tk::Derived Tk::Canvas);
 
@@ -45,6 +50,10 @@ sub Populate
   # Default resolution, for scaling
   $self->{dpi} = 72;
   $self->{margin} = .10;
+
+  # Keep track of fonts used, so they can be scaled
+  # when the canvas is scaled
+  $self->{fonts} = {};
 }
 
 
@@ -157,7 +166,7 @@ sub _createDotFile
     }
 
     else {
-      die "Bad graph";
+      die __PACKAGE__.": Bad graph";
     }
   }
 
@@ -219,7 +228,7 @@ sub _parseLayout
   my %allEdgeAttrs = ();
   my %graphAttrs = ();
   my ($minX, $minY, $maxX, $maxY) = ( undef, undef, undef, undef );
-  my @saveStack = ( [ {}, {}, {} ] );
+  my @saveStack = ();
 
   my $accum = undef;
 
@@ -239,31 +248,17 @@ sub _parseLayout
     #STDERR->print ( "layout: $_\n" );
 
     if ( /^\s+node \[(.+)\];/ ) {
-      %allNodeAttrs = ();
       $self->_parseAttrs ( "$1", \%allNodeAttrs );
       next;
     }
 
     if ( /^\s+edge \[(.+)\];/ ) {
-      %allEdgeAttrs = ();
       $self->_parseAttrs ( "$1", \%allEdgeAttrs );
       next;
     }
 
     if ( /^\s+graph \[(.+)\];/ ) {
       $self->_parseAttrs ( "$1", \%graphAttrs );
-      if ( defined $graphAttrs{bb} ) {
-	my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
-	$minX = min($minX,$x1);
-	$minY = min($minY,$y1);
-	$maxX = max($maxX,$x2);
-	$maxY = max($maxY,$y2);
-
-	if ( defined($graphAttrs{label}) ) {
-	  $self->_createSubgraph ( $x1, $y1, $x2, $y2, %graphAttrs );
-	}
-      }
-
       next;
     }
 
@@ -278,7 +273,18 @@ sub _parseLayout
     }
 
     if ( /^\s*\}/ ) {
+      # End of a graph section
       if ( @saveStack ) {
+	# Subgraph
+	if ( defined($graphAttrs{bb}) ) {
+	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
+	  $minX = min($minX,$x1);
+	  $minY = min($minY,$y1);
+	  $maxX = max($maxX,$x2);
+	  $maxY = max($maxY,$y2);
+	  $self->_createSubgraph ( $x1, $y1, $x2, $y2, %graphAttrs );
+	}
+
 	my ($g,$n,$e) = @{pop @saveStack};
 	%graphAttrs = %$g;
 	%allNodeAttrs = %$n;
@@ -286,11 +292,24 @@ sub _parseLayout
 	next;
       } else {
 	# End of the graph
+	# Create any whole-graph label
+	if ( defined($graphAttrs{bb}) ) {
+	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
+	  $minX = min($minX,$x1);
+	  $minY = min($minY,$y1);
+	  $maxX = max($maxX,$x2);
+	  $maxY = max($maxY,$y2);
+
+	  # delete bb attribute so rectangle is not drawn around whole graph
+	  delete  $graphAttrs{bb};
+
+	  $self->_createSubgraph ( $x1, $y1, $x2, $y2, %graphAttrs );
+	}
 	last;
       }
     }
 
-    if ( /\s+(.+) \-\> (.+) \[(.+)\];/ ) {
+    if ( /\s+(.+) \-[\>\-] (.+) \[(.+)\];/ ) {
       # Edge
       my ($n1,$n2,$attrs) = ($1,$2,$3);
       my %edgeAttrs = %allEdgeAttrs;
@@ -307,6 +326,11 @@ sub _parseLayout
     if ( /\s+(.+) \[(.+)\];/ ) {
       # Node
       my ($name,$attrs) = ($1,$2);
+
+      # Get rid of any leading/tailing quotes
+      $name =~ s/^\"//;
+      $name =~ s/\"$//;
+
       my %nodeAttrs = %allNodeAttrs;
       $self->_parseAttrs ( $attrs, \%nodeAttrs );
 
@@ -384,25 +408,54 @@ sub _createSubgraph
 {
   my ($self, $x1, $y1, $x2, $y2, %attrs) = @_;
 
-  my $label = $attrs{label} || '';
+  my $label = $attrs{label};
   my $color = $attrs{color} || 'black';
 
   my $tags = [ subgraph => $label, %attrs ];
 
-  # Create the box
-  $self->createRectangle ( $x1, -1 * $y2, $x2, -1 * $y1,
-			   -outline => $color,
-			   -fill => $self->cget('-background'),
-			   -tags => $tags );
+  # Get/Check a valid color
+  $color = $self->_tryColor($color);
 
-  # Create the label
-  $label =~ s/\\n/\n/g;
-  $tags->[0] = 'subgraphlabel'; # Replace 'subgraph' w/ 'subgraphlabel'
-  my @args = ( $x1, -1 * $y2,
-	       -text => ' '.$label, -anchor => 'nw',
-	       -tags => $tags );
-  push @args, ( -state => 'disabled' );
-  $self->createText ( @args );
+  my @styleArgs;
+  if( $attrs{style} ){
+    my $style = $attrs{style};
+    if ( $style =~ /dashed/i ) {
+      @styleArgs = (-dash => '-');
+    }
+    elsif ( $style =~ /dotted/ ) {
+      @styleArgs = (-dash => '.');
+    }
+    elsif ( $style =~ /filled/ ) {
+      my $fillColor = ( defined($attrs{fillcolor})?
+			$self->tryColor($attrs{fillcolor}) :  $color );
+      push @styleArgs, (-fill => $fillColor);
+    }
+    elsif( $style =~ /bold/ ) {
+      # Bold outline, gets wider line
+      push @styleArgs, (-width => 2);
+    }
+  }
+
+  # Create the box if coords are defined
+  if( $attrs{bb} ) {
+    my $id = $self->createRectangle ( $x1, -1 * $y2, $x2, -1 * $y1,
+				      -outline => $color, @styleArgs,
+				      -tags => $tags );
+    $self->lower($id); # make sure it doesn't obscure anything
+  }
+
+  # Create the label, if defined
+  if( $attrs{label} && $attrs{lp} ) {
+    my $lp = $attrs{lp};
+    my ($x,$y) = split(/\s*,\s*/,$lp);
+    $label =~ s/\\n/\n/g;
+    $tags->[0] = 'subgraphlabel'; # Replace 'subgraph' w/ 'subgraphlabel'
+    my @args = ( $x, -1 * $y,
+		 -text => $label,
+		 -tags => $tags );
+    push @args, ( -state => 'disabled' );
+    $self->createText ( @args );
+  }
 }
 
 
@@ -435,13 +488,16 @@ sub _createNode
 
   my @args = ();
 
-  my $outline = $attrs{color} || 'black';
-  my $fill = $attrs{fillcolor} || $self->cget('-background');
+  my $outline = ( defined($attrs{color})? $self->_tryColor($attrs{color})
+		  : 'black' );
+  my $fill = ( defined($attrs{fillcolor})? $self->_tryColor($attrs{fillcolor})
+	       : $self->cget('-background') );
   my $shape = $attrs{shape} || '';
 
   foreach my $style ( split ( /,/, $attrs{style}||'' ) ) {
     if ( $style eq 'filled' ) {
-      $fill = $outline;
+      $fill = ( defined($attrs{color})? $self->_tryColor($attrs{color})
+		: 'lightgrey' );
     }
     elsif ( $style eq 'invis' ) {
       $outline = undef;
@@ -466,18 +522,26 @@ sub _createNode
 
   my $orient = $attrs{orientation} || 0.0;
 
-  $self->_createShape ( $shape, $x1, -1*$y2, $x2, -1*$y1,
-			$orient,
-			@args, -tags => $tags );
-
   # Node label
   $label =~ s/\\n/\n/g;
-  $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
-  @args = ( ($x1 + $x2)/2, -1*($y2 + $y1)/2, -text => $label,
-	    -anchor => 'center', -justify => 'center',
-	    -tags => $tags );
-  push @args, ( -state => 'disabled' );
-  $self->createText ( @args );
+
+  unless ( $shape eq 'record' ) {
+    # Normal non-record node types
+    $self->_createShape ( $shape, $x1, -1*$y2, $x2, -1*$y1,
+			  $orient, @args, -tags => $tags );
+
+    # Node label
+    $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
+    @args = ( ($x1 + $x2)/2, -1*($y2 + $y1)/2, -text => $label,
+	      -anchor => 'center', -justify => 'center',
+	      -tags => $tags );
+    push @args, ( -state => 'disabled' );
+    $self->createText ( @args );
+  }
+  else {
+    # Record node types
+    $self->_createRecord ( $label, %attrs, tags => $tags );
+  }
 
   # Return the bounding box of the node
   ($x1,$y1,$x2,$y2);
@@ -546,13 +610,18 @@ sub _createShape
 
   elsif ( $shape eq 'doublecircle' ) {
     my $diam = max(abs($x2-$x1),abs($y2-$y1));
-    my $inset = max(5,$diam*.1);
+    my $inset = max(2,$diam*.1);
     $self->createOval ( $x1, $y1, $x2, $y2, %args );
     $id = $self->createOval ( $x1+$inset, $y1+$inset,
 			       $x2-$inset, $y2-$inset, %args );
   }
 
-  elsif ( $shape eq 'ellipse' || $shape eq '' ) {
+  elsif (  $shape eq 'plaintext' ) {
+    # Don't draw an outline for plaintext
+    return undef;
+  }
+
+  elsif ( $shape eq '' || $shape eq 'ellipse' || $shape eq 'circle' ) {
     # Default shape = oval
   }
 
@@ -618,6 +687,66 @@ sub _createPolyShape
 
 
 ######################################################################
+# Draw the node record shapes
+######################################################################
+sub _createRecord
+{
+  my ($self, $label, %attrs) = @_;
+
+  my $tags = $attrs{tags};
+
+  # Get Rectangle Coords
+  my $rects = $attrs{rects};
+  my @rects = split(' ', $rects);
+  my @rectsCoords = map [ split(',',$_) ], @rects;
+
+  # Setup to parse the label (Label parser object created using Parse::Yapp)
+  my $parser = new Tk::GraphViz::parseRecordLabel();
+  $parser->YYData->{INPUT} = $label;
+
+  # And parse it...
+  my $structure = $parser->YYParse
+    ( yylex => \&Tk::GraphViz::parseRecordLabel::Lexer,
+      yyerror => \&Tk::GraphViz::parseRecordLabel::Error,
+      yydebug => 0 );
+  die __PACKAGE__.": Error Parsing Record Node Label '$label'\n"
+    unless $structure;
+
+  my @labels = @$structure;
+
+  # Draw the rectangles
+  my $portIndex = 1;  # Ports numbered from 1. This is used for the port name
+                      # in the tags, if no port name is defined in the dot file
+  foreach my $rectCoords ( @rectsCoords ) {
+    my ($port, $text) = %{shift @labels};
+
+    # use port index for name, if one not defined
+    $port = $portIndex unless ( $port =~ /\S/);
+
+    my %portTags = (@$tags); # copy of tags
+    $portTags{port} = $port;
+
+    # get rid of leading trailing whitespace
+    $text =~ s/^\s+//;
+    $text =~ s/\s+$//;
+
+    $portTags{label} = $text;
+
+    my ($x1,$y1,$x2,$y2) = @$rectCoords;
+    $self->createRectangle ( $x1, -$y1, $x2, -$y2, -tags => [%portTags] );
+
+    # Find midpoint for label anchor point
+    my $midX = ($x1 + $x2)/2;
+    my $midY = ($y1 + $y2)/2;
+    $portTags{nodelabel} = delete $portTags{node}; # Replace 'node' w/ 'nodelabel'
+    $self->createText ( $midX, -$midY, -text => $text, -tags => [%portTags]);
+
+    $portIndex++;
+  }
+}
+
+
+######################################################################
 # Create a edge
 #
 ######################################################################
@@ -636,12 +765,47 @@ sub _createEdge
 
   # Parse the edge position
   my $pos = $attrs{pos} || return;
-  my ($where,@coords) = $self->_parseEdgePos ( $pos );
+  my ($startEndCoords,@coords) = $self->_parseEdgePos ( $pos );
 
   my @args = ();
 
-  foreach ( @coords ) {
-    my ($x,$y) = @$_;
+  # Convert Biezer control points to 4 real points to smooth against
+  #  Canvas line smoothing doesn't use beizers, so we supply more points
+  #   along the manually-calculated bezier points.
+
+  @coords = map @$_, @coords; #flatten coords array
+
+  my @newCoords;
+  my ($startIndex, $stopIndex);
+  $startIndex = 0;
+  $stopIndex  = 7;
+  my $lastFlag = 0;
+  my @controlPoints;
+  while($stopIndex <= $#coords){
+    @controlPoints = @coords[$startIndex..$stopIndex];
+
+    # If this is the last set, set the flag, so we will get
+    # the last point
+    $lastFlag = 1 if( $stopIndex == $#coords);
+
+    push @newCoords, 
+      $self->_bezierInterpolate(\@controlPoints, 0.1, $lastFlag);
+
+    $startIndex += 6;
+    $stopIndex += 6;
+  }
+
+  # Add start/end coords
+  if(defined($startEndCoords->{s})){
+    unshift @newCoords, @{ $startEndCoords->{s} }; # put at the begining
+  }
+  if(defined($startEndCoords->{e})){
+    push @newCoords, @{ $startEndCoords->{e}}; # put at the end
+  }
+
+  # Convert Sign of y-values of coords, record min/max
+  for( my $i = 0; $i < @newCoords; $i+= 2){
+    my ($x,$y) = @newCoords[$i, $i+1];
     push @args, $x, -1*$y;
     #printf ( "  $x,$y\n" );
     $x1 = min($x1, $x);
@@ -651,11 +815,18 @@ sub _createEdge
   }
 
   #STDERR->printf ( "createEdge: $n1->$n2 ($x1,$y1) ($x2,$y2)\n" );
-
-  if ( defined($where) ) {
-    if ( $where eq 'e' ) { push @args, -arrow => 'last'; }
-    elsif ( $where eq 's' ) { push @args, -arrow => 'first'; }
+  if ( defined($startEndCoords->{s}) &&
+       defined($startEndCoords->{e}) ) { # two-sided arrow
+    push @args, -arrow => 'both';
   }
+  elsif ( defined($startEndCoords->{e}) ) { # arrow just at the end
+    push @args, -arrow => 'last';	
+  }
+  elsif ( defined($startEndCoords->{s}) ) { # arrow just at the start
+    push @args, -arrow => 'first';	
+  }
+
+  my $color = $attrs{color};
 
   foreach my $style ( split(/,/, $attrs{style}||'') ) {
     if ( $style eq 'dashed' ) {
@@ -667,9 +838,13 @@ sub _createEdge
     elsif ( $style =~ /setlinewidth\((\d+)\)/ ) {
       push @args, -width => "$1";
     }
+    elsif ( $style =~ /invis/ ) {
+      # invisible edge, make same as background
+      $color = $self->cget('-background');
+    }
   }
 
-  push @args, -fill => ($attrs{color} || 'black');
+  push @args, -fill => ( defined($color)? $self->_tryColor($color) : 'black' );
 
   # Create the line
   $self->createLine ( @args, -smooth => 1, -tags => $tags );
@@ -702,10 +877,19 @@ sub _parseEdgePos
 {
   my ($self, $pos) = @_;
 
-  # First two chars are '[se],'
-  # which have the purpose of ...
-  $pos =~ s/^(.),//;
-  my $where = $1;
+  # Note: Arrows can be at the start and end, i.e.
+  #    pos =  s,410,104 e,558,59 417,98 ...
+  #      (See example graph 'graphs/directed/ldbxtried.dot')
+
+  # hash of start/end coords
+  # Example: e => [ 12, 3 ], s = [ 1, 3 ]
+  my %startEnd;
+
+  # Process all start/end points (could be none, 1, or 2)
+  while ( $pos =~ s/^([se])\s*\,\s*(\d+)\s*\,\s*(\d+)\s+// ) {
+    my ($where, $x, $y) = ($1, $2, $3);
+    $startEnd{$where} = [ $x, $y ];
+  }
 
   my @loc = split(/ |,/, $pos);
   my @coords = ();
@@ -714,20 +898,71 @@ sub _parseEdgePos
     push @coords, [$x,$y];
   }
 
-  if ( defined($where) ) {
-    if ( $where eq 'e' ) {
-      # With 'e', order is 0, n, n-1, n-2, ... 1,
-      # so put first at end
-      push @coords, (shift @coords);
-    }
-    elsif ( $where eq 's' ) {
-      # With 's', order is n, n-1, n-2, ... 0
-      # so leave in order given
-    }
+  (\%startEnd, @coords);
+}
+
+
+######################################################################
+# Sub to make points on a curve, based on Bezier control points
+#  Inputs:
+#   $controlPoints: Array of control points (x/y P0,1,2,3)
+#   $tinc:  Increment to use for t (t = 0 to 1 )
+#   $lastFlag: Flag = 1 to generate the last point (where t = 1)
+#
+#  Output;
+#   @outputPoints: Array of points along the biezier curve
+#
+#  Equations used
+#Found Bezier Equations at http://pfaedit.sourceforge.net/bezier.html
+#
+#	A cubic Bezier curve may be viewed as:
+#	x = ax*t3 + bx*t2 + cx*t +dx
+#	 y = ay*t3 + by*t2 + cy*t +dy
+#
+#	Where
+#
+#	dx = P0.x
+#	dy = P0.y
+#	cx = 3*P1.x-3*P0.x
+#	cy = 3*P1.y-3*P0.y
+#	bx = 3*P2.x-6*P1.x+3*P0.x
+#	by = 3*P2.y-6*P1.y+3*P0.y
+#	ax = P3.x-3*P2.x+3*P1.x-P0.x
+#	ay = P3.y-3*P2.y+3*P1.y-P0.y
+######################################################################
+sub _bezierInterpolate
+{
+  my ($self,$controlPoints, $tinc, $lastFlag) = @_;
+
+  # interpolation constants
+  my ($ax,$bx,$cx,$dx);
+  my ($ay,$by,$cy,$dy);
+
+  $dx =    $controlPoints->[0];
+  $cx =  3*$controlPoints->[2] - 3*$controlPoints->[0];
+  $bx =  3*$controlPoints->[4] - 6*$controlPoints->[2] + 3*$controlPoints->[0];
+  $ax = (  $controlPoints->[6] - 3*$controlPoints->[4] + 3*$controlPoints->[2]
+	   - $controlPoints->[0] );
+
+  $dy =    $controlPoints->[1];
+  $cy =  3*$controlPoints->[3] - 3*$controlPoints->[1];
+  $by =  3*$controlPoints->[5] - 6*$controlPoints->[3] + 3*$controlPoints->[1];
+  $ay = (  $controlPoints->[7] - 3*$controlPoints->[5] + 3*$controlPoints->[3]
+	   - $controlPoints->[1] );
+
+  my @outputPoints;
+  for( my $t=0; $t <= 1; $t+=$tinc ){
+    # don't do the last point unless lastflag set
+    next if($t == 1 && !$lastFlag);
+
+    # Compute X point
+    push @outputPoints, ($ax*$t**3 + $bx*$t**2 + $cx*$t +$dx);
+
+    # Compute Y point
+    push @outputPoints, ($ay*$t**3 + $by*$t**2 + $cy*$t +$dy);
   }
 
-
-  ($where,@coords);
+  return @outputPoints;
 }
 
 
@@ -768,19 +1003,15 @@ sub _scaleAndMoveView
   #STDERR->printf ( "scaled: %s -> %s\n",
   #		       $self->{_scaled}, $new_scaled );
 
-  # May want to hide labels if zoomed out too far,
-  # since they don't scale very well.
-  if ( $new_scaled <= .5 ) {
-    # Zoomed out, hide labels
-    $self->itemconfigure ( 'subgraphlabel||'.
-			   'nodelabel||edgelabel',
-			   -state => 'hidden' );
-  }
-  elsif ( $self->{_scaled} <= .5 ) {
-    # Unhide labels that were previous hidden
-    $self->itemconfigure ( 'subgraphlabel||'.
-			   'nodelabel||edgelabel',
-			   -state => 'disabled' );
+  # Scale the fonts:
+  my $fonts = $self->{fonts};
+  #print "new_scaled = $new_scaled\n";
+  foreach my $fontName ( keys %$fonts ) {
+    my $font = $fonts->{$fontName}{font};
+    my $origSize = $fonts->{$fontName}{origSize};
+    my $newSize = int( $origSize*$new_scaled + 0.5);
+    $font->configure ( -size => $newSize );
+    #print "Font '$fontName' Origsize = $origSize, newsize $newSize, actual size ".$font->actual(-size)."\n";
   }
 
   $self->{_scaled} = $new_scaled;
@@ -831,6 +1062,9 @@ sub createBindings
 
     # Default scroll bindings
     $opt{'-scroll'} = 1;
+
+    # Key-pad bindings
+    $opt{'-keypad'} = 1;
   }
 
   if ( defined $opt{'-zoom'} ) {
@@ -839,6 +1073,10 @@ sub createBindings
 
   if ( defined $opt{'-scroll'} ) {
     $self->_createScrollBindings( %opt );
+  }
+
+  if ( defined $opt{'-keypad'} ) {
+    $self->_createKeypadBindings( %opt );
   }
 
 }
@@ -1075,6 +1313,46 @@ sub _startScroll
 }
 
 
+######################################################################
+# Setup bindings for keypad keys to do zooming and scrolling
+#
+# This binds +/- on the keypad to zoom in and out, and the arrow/number
+# keys to scroll.
+######################################################################
+sub _createKeypadBindings
+{
+  my ($self, %opt) = @_;
+
+  $self->Tk::bind ( '<KeyPress-KP_Add>' =>
+		  sub { $self->zoom( -in => 1.15 ) } );
+  $self->Tk::bind ( '<KeyPress-KP_Subtract>' =>
+		  sub { $self->zoom( -out => 1.15 ) } );
+
+  $self->Tk::bind ( '<KeyPress-KP_1>' =>
+		  sub { $self->xview( scroll => -1, 'units' );
+			$self->yview( scroll => 1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_2>' =>
+		  sub { $self->yview( scroll => 1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_3>' =>
+		  sub { $self->xview( scroll => 1, 'units' );
+			$self->yview( scroll => 1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_4>' =>
+		  sub { $self->xview( scroll => -1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_6>' =>
+		  sub { $self->xview( scroll => 1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_7>' =>
+		  sub { $self->xview( scroll => -1, 'units' );
+			$self->yview( scroll => -1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_8>' =>
+		  sub { $self->yview( scroll => -1, 'units' ) } );
+  $self->Tk::bind ( '<KeyPress-KP_9>' =>
+		  sub { $self->xview( scroll => 1, 'units' );
+			$self->yview( scroll => -1, 'units' ) } );
+
+  1;
+}
+
+
 #######################################################################
 ## Setup binding for 'fit' operation
 ##
@@ -1166,6 +1444,163 @@ sub zoom
 }
 
 
+######################################################################
+# Over-ridden createText Method
+#
+# Handles the embedded \l\r\n graphViz control characters
+######################################################################
+sub createText
+{
+  my ($self, $x, $y, %attrs) = @_;
+
+  if( defined($attrs{-text}) ) {
+
+    # Set Justification, based on any \n \l \r in the text label
+    my $label = $attrs{-text};
+    my $justify = 'center';
+
+    # Per the dotguide.pdf, a '\l', '\r', or '\n' is
+    #  just a line terminator, not a newline. So in cases
+    #   where the label ends in one of these characters, we are
+    #   going to remove the newline char later
+    my $removeNewline;
+    if( $label =~ /\\[nlr]$/){
+      $removeNewline = 1;
+    }
+
+    if( $label =~ s/\\l/\n/g ){
+      $justify = 'left';
+    }
+    if( $label =~ s/\\r/\n/g ){
+      $justify = 'right';
+    }
+
+    # Change \n to actual \n
+    if( $label =~ s/\\n/\n/g ){
+      $justify  = 'center';
+    }
+
+    # remove ending newline if flag set
+    if( $removeNewline){
+      $label =~ s/\n$//;
+    }
+
+    # Fix  any escaped chars
+    #   like \} to }, and \\{ to \{
+    $label =~ s/\\(?!\\)(.)/$1/g;
+
+    $attrs{-text} = $label;
+    $attrs{-justify} = $justify;
+
+    # Fix the label tag, if there is one
+    my $tags;
+    if( defined($tags = $attrs{-tags})){
+      my %tags = (@$tags);
+      $tags{label} = $label if(defined($tags{label}));
+      $attrs{-tags} = [%tags];
+    }
+
+    # Get the default font, if not defined already
+    my $fonts = $self->{fonts};
+    unless(defined($fonts->{_default}) ){
+
+      # Create dummy item, so we can see what font is used
+      my $dummyID = $self->SUPER::createText 
+	( 100,25, -text => "You should never see this" );
+      my $defaultfont = $self->itemcget($dummyID,-font);
+
+      # Make a copy that we will mess with:
+      $defaultfont = $defaultfont->Clone;
+      $fonts->{_default}{font}     = $defaultfont;
+      $fonts->{_default}{origSize} = $defaultfont->actual(-size);
+
+      # Delete the dummy item
+      $self->delete($dummyID);
+    }
+
+    # Assign the default font
+    unless( defined($attrs{-font}) ){
+      $attrs{-font} = $fonts->{_default}{font};
+    }
+
+  }
+
+  # Call Inherited createText
+  $self->SUPER::createText ( $x, $y, %attrs );
+}
+
+
+######################################################################
+#  Sub to try a color name, returns the color name if recognized
+#   'black' and issues a warning if not
+######################################################################
+sub _tryColor
+{
+  my ($self,$color) = @_;
+
+  # Special cases
+  if( $color eq 'crimson' ) {
+    # crimison not defined in Tk, so use GraphViz's definition
+    return sprintf("#%02X%02x%02X", 246,231,220); 
+  }
+  elsif( $color =~ /^(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s+(-?\d+\.?\d*)\s*$/ ) {
+    # three color numbers
+    my($hue,$sat,$bright) = ($1,$2,$3);
+    return $self->_hsb2rgb($hue,$sat,$bright);
+  }
+
+  # Don't check color if it is a hex rgb value
+  unless( $color =~ /^\#\w+/ ) {
+    my $tryColor = $color;
+    $tryColor =~ s/\_//g; # get rid of any underscores
+    my @rgb;
+    eval { @rgb = $self->rgb($tryColor); };
+    if ($@) {
+      warn __PACKAGE__.": Unkown color $color, using black instead\n";
+      $color = 'black';
+    } else {
+      $color = $tryColor;
+    }
+  }
+
+  $color;
+}	
+
+
+######################################################################
+# Sub to convert from Hue-Sat-Brightness to RGB hex number
+#
+######################################################################
+sub _hsb2rgb
+{
+  my ($self,$h,$s,$v) = @_;
+
+  my ($r,$g,$b);
+  if( $s <= 0){
+    $v = int($v);
+    ($r,$g,$b) = ($v,$v,$v);
+  }
+  else{
+    if( $h >= 1){
+      $h = 0;
+    }
+    $h = 6*$h;
+    my $f = $h - int($h);
+    my $p = $v * (1 - $s);
+    my $q = $v * ( 1 - ($s * $f));
+    my $t = $v * ( 1 - ($s * (1-$f)));
+    my $i = int($h);
+    if( $i == 0){	   ($r,$g,$b)  = ($v, $t, $p);}
+    elsif( $i == 1){ ($r,$g,$b)  = ($q, $v, $p);}
+    elsif( $i == 2){($r,$g,$b)   = ($p, $v, $t);}
+    elsif( $i == 3){($r,$g,$b)   = ($p, $q, $v);}
+    elsif( $i == 4){($r,$g,$b)   = ($t, $p, $v);}
+    elsif( $i == 5){($r,$g,$b)   = ($v, $p, $q);}
+
+  }
+
+  sprintf("#%02X%02x%02X", 255*$r, 255*$g, 244*$b);
+}
 
 
 ######################################################################
@@ -1260,6 +1695,10 @@ This will bind scrolling to an alternative event sequence.  Examples:
     -scroll => '<1>'      # Scroll on mouse button 1
     -scroll => '<Ctrl-3>' # Scroll on Ctrl + mouse button 3
 
+=item -keypad => I<true>
+
+Binds the keypad arrow / number keys to scroll the canvas, and the keypad +/- keys to zoom in and out.  Note that the canvas must have the keyboard focus for these bindings to be activated.  This is done by default when createBindings() is called without any options.
+
 =back
 
 =head2 $gv->fit()
@@ -1337,18 +1776,19 @@ Lots of DOT language features not yet implemented
 
 =item Various node shapes and attributes: polygon, skew, ...
 
-=item Necord-style nodes
-
 =item Edge arrow head types
 
 =head1 ACKNOWLEDGEMENTS
 
 See http://www.graphviz.org/ for more info on the graphviz tools.
 
-
 =head1 AUTHOR
 
 Jeremy Slade E<lt>jeremy@jkslade.netE<gt>
+
+Other contributors:
+John Cerney,
+Slaven Rezic
 
 =head1 COPYRIGHT AND LICENSE
 

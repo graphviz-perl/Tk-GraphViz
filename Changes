@@ -1,5 +1,9 @@
 Revision history for Perl extension Tk::GraphViz.
 
+0.05  Tue Mar  4 21:27:39 2003
+	- Added -keypad bindings option
+        - Implemented record nodes, font scaling, bezier curves (John Cerney)
+
 0.04  Tue Feb 25 21:46:45 2003
 	- A few minor enhancements to existing functionality
 
