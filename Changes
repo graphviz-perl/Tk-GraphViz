@@ -1,5 +1,11 @@
 Revision history for Perl extension Tk::GraphViz.
 
+0.04  Tue Feb 25 21:46:45 2003
+	- A few minor enhancements to existing functionality
+
+0.03  Wed Feb  5 10:06:00 2003
+	- Original version packaged for submission to CPAN
+
 0.01  Sat Jan 25 14:28:47 2003
 	- Original version packaged for submission to CPAN
 

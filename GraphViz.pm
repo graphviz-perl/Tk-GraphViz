@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.03';
+$Tk::GraphViz::VERSION = '0.04';
 
 package Tk::GraphViz;
 
@@ -221,8 +221,21 @@ sub _parseLayout
   my ($minX, $minY, $maxX, $maxY) = ( undef, undef, undef, undef );
   my @saveStack = ( [ {}, {}, {} ] );
 
+  my $accum = undef;
+
   foreach ( @$layoutLines ) {
     chomp;
+
+    # Handle line-continuation that gets put in for longer lines...
+    if ( defined $accum ) {
+      $_ = $accum . $_;
+      $accum = undef;
+    }
+    if ( s/\\$// ) {
+      $accum = $_;
+      next;
+    }
+
     #STDERR->print ( "layout: $_\n" );
 
     if ( /^\s+node \[(.+)\];/ ) {
@@ -264,7 +277,7 @@ sub _parseLayout
       next;
     }
 
-    if ( /^\s+\}/ ) {
+    if ( /^\s*\}/ ) {
       if ( @saveStack ) {
 	my ($g,$n,$e) = @{pop @saveStack};
 	%graphAttrs = %$g;
@@ -379,6 +392,7 @@ sub _createSubgraph
   # Create the box
   $self->createRectangle ( $x1, -1 * $y2, $x2, -1 * $y1,
 			   -outline => $color,
+			   -fill => $self->cget('-background'),
 			   -tags => $tags );
 
   # Create the label
@@ -495,9 +509,9 @@ sub _createShape
   }
 
   elsif ( $shape eq 'triangle' ) {
-    $id = $self->_createPolyShape ( [ [ 0, 0 ],
-				      [ 0.5, 1.0 ],
-				      [ 1.0, 0 ] ],
+    $id = $self->_createPolyShape ( [ [ 0, .75 ],
+				      [ 0.5, 0 ],
+				      [ 1, .75 ] ],
 				    $x1, $y1, $x2, $y2, $orient, %args );
   }
 
@@ -528,6 +542,14 @@ sub _createShape
 				      [ 1, .5 ],
 				      [ 1, 1 ] ],
 				    $x1, $y1, $x2, $y2, $orient, %args );
+  }
+
+  elsif ( $shape eq 'doublecircle' ) {
+    my $diam = max(abs($x2-$x1),abs($y2-$y1));
+    my $inset = max(5,$diam*.1);
+    $self->createOval ( $x1, $y1, $x2, $y2, %args );
+    $id = $self->createOval ( $x1+$inset, $y1+$inset,
+			       $x2-$inset, $y2-$inset, %args );
   }
 
   elsif ( $shape eq 'ellipse' || $shape eq '' ) {
@@ -608,7 +630,9 @@ sub _createEdge
   my $x2 = undef;
   my $y2 = undef;
 
-  my $tags = [ edge => [ $n1, $n2 ], %attrs ];
+  my $tags = [ edge => "$n1 $n2",
+	       node1 => $n1, node2 => $n2,
+	       %attrs ];
 
   # Parse the edge position
   my $pos = $attrs{pos} || return;
@@ -927,11 +951,7 @@ sub _startZoom
 		      # (0,0) is top left, so $dy > 0 means top->bottom
 		      if ( $dy > 0 ) {
 			# Zooming in!
-
-			# Feels better if it doesn't zoom in
-                        # quite so fast...
 			#STDERR->printf ( "Zooming in: $scale\n" );
-
 		      } else {
 			# Zooming out!
 			$scale = 1 - 1.0 / $scale;
@@ -1094,17 +1114,53 @@ sub fit
   my ($self, $idOrTag) = @_;
   $idOrTag = 'all' unless defined $idOrTag;
 
-  my $w = $self->cget( '-width' );
-  my $h = $self->cget( '-height' );
+  my $w = $self->width();
+  my $h = $self->height();
   my ($x1,$y1,$x2,$y2) = $self->bbox( $idOrTag );
+  my $dx = abs($x2 - $x1);
+  my $dy = abs($y2 - $y1);
+  return 0 unless defined $x1;
 
-  my $scalex = $w / abs($x2 - $x1);
-  my $scaley = $h / abs($y2 - $y1);
+  my $scalex = $w / $dx;
+  my $scaley = $h / $dy;
   my $scale = min ( $scalex, $scaley );
-  #STDERR->printf ( "fit: scalex = $scalex, scaledy = $scaley\n" );
+  if ( $scalex >= 1.0 && $scaley >= 1.0 ) {
+    max ( $scalex, $scaley );
+  }
+
   $self->_scaleAndMoveView ( $scale,
 			     xview => 0,
 			     yview => 0 );
+
+  1;
+}
+
+
+######################################################################
+# Zoom in or out, keep top-level centered.
+#
+######################################################################
+sub zoom
+{
+  my ($self, $dir, $scale) = @_;
+
+  my ($xv) = $self->xview();
+  my ($yv) = $self->yview();
+  my ($x1,$y1,$x2,$y2) = $self->bbox('all');
+  my $w = abs($x2-$x1);
+  my $h = abs($y2-$y1);
+
+  if ( $dir eq '-in' ) {
+    # Make things bigger
+  }
+  elsif ( $dir eq '-out' ) {
+    # Make things smaller
+    $scale = 1 / $scale;
+  }
+
+  $self->_scaleAndMoveView ( $scale,
+			     xview => $xv * $w * $scale,
+			     yview => $yv * $h * $scale );
 
   1;
 }
@@ -1210,6 +1266,17 @@ This will bind scrolling to an alternative event sequence.  Examples:
 
 Scales all of the elements in the canvas to fit the canvas' width and height.
 
+=head2 $gv->zoom( -in => factor )
+
+Zoom in by scaling everything up by the given scale factor.  The factor should be > 1.0 in order to get reasonable behavior.
+
+=head2 $gv->zoom( -out => factor )
+
+Zoom out by scaling everything down by the given scale factor.  This is equivalent to
+
+    $gv->zoom ( -in => 1/factor )
+
+The factor show be > 1.0 in order to get reasonable behavior.
 
 =head1 TAGS
 
@@ -1229,7 +1296,7 @@ Edge elements are identified with a 'edge' tag.  For example, to bind something 
 
     $gv->bind ( 'edge', '<Any-Enter>', sub { ... } );
 
-The value of the 'edge' tag is an array reference containing two items, which are the names of the two endpoint nodes for the edge (in [ source, destination ] order).
+The value of the 'edge' tag is an a string of the form "node1 node2", where node1 and node2 are the names of the respective nodes.  To make it convenient to get the individual node names, the edge also has tags 'node1' and 'node2', which give the node names separately.
 
 =head2 Subgraphs
 
@@ -1270,9 +1337,9 @@ Lots of DOT language features not yet implemented
 
 =item Various node shapes and attributes: polygon, skew, ...
 
-=item Edge arrow head types
+=item Necord-style nodes
 
-=back
+=item Edge arrow head types
 
 =head1 ACKNOWLEDGEMENTS
 
