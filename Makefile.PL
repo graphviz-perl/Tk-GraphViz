@@ -5,7 +5,7 @@ WriteMakefile(
     'NAME'		=> 'Tk::GraphViz',
     'VERSION_FROM'	=> 'GraphViz.pm', # finds $VERSION
     'PREREQ_PM'		=> { Tk => 800.020,
-			     reaper => 0.03 },
+			     Reaper => 1.00 },
 
     'PM' => { 'GraphViz.pm' => '$(INST_LIBDIR)/GraphViz.pm',
 	      'parseRecordLabel.pm' => '$(INST_LIBDIR)/GraphViz/parseRecordLabel.pm'

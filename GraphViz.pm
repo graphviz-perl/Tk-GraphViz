@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.13';
+$Tk::GraphViz::VERSION = '0.90';
 
 package Tk::GraphViz;
 
@@ -17,7 +17,7 @@ use base qw(Tk::Derived Tk::Canvas);
 #use warnings;
 use IO qw(Handle File Pipe);
 use Carp;
-use reaper qw( reapPid pidStatus );
+use Reaper qw( reapPid pidStatus );
 
 use IPC::Open3;
 use POSIX qw( :sys_wait_h :errno_h );
@@ -54,7 +54,7 @@ sub Populate
 
   # Default resolution, for scaling
   $self->{dpi} = 72;
-  $self->{margin} = .15;
+  $self->{margin} = .15 * $self->{dpi};
 
   # Keep track of fonts used, so they can be scaled
   # when the canvas is scaled
@@ -80,7 +80,7 @@ sub show
 
   # Layout is actually done in the background, so the graph
   # will get updated when the new layout is ready
-  $self->_startGraphLayout ( $graph, %opt );
+  $self->_startGraphLayout ( $graph, fit => 1, %opt );
 }
 
 
@@ -130,6 +130,7 @@ sub _stopGraphLayout
   if ( defined $proc->{pid} ) {
     my @sig = qw( TERM TERM TERM TERM KILL );
     for ( my $i = 0; $i < 5; ++$i ) {
+      last unless defined $proc->{pid};
       kill $sig[$i], $proc->{pid};
       if ( $self->_checkGraphLayout( noafter => 1 ) ) {
 	sleep $i+1;
@@ -189,8 +190,7 @@ sub _checkGraphLayout
   }
 
   # Read available output...
-  $self->_readGraphLayout ();
-
+  while ( $self->_readGraphLayout () ) { last if !$finished; }
 
   # When finished, show the new contents
   if ( $finished ) {
@@ -372,11 +372,11 @@ sub _startDot
   my $proc = {};
   my $ppid = $$;
   eval {
-    $proc->{pid} = open3 ( $in, $out, \*STDERR, $layout_cmd );
+    $proc->{pid} = open3 ( $in, $out, '>&STDERR', $layout_cmd );
     reapPid ( $proc->{pid} );
 
     # Fork failure?
-    exit(43) if ( $$ != $ppid );
+    exit(127) if ( $$ != $ppid );
   };
   if ( defined($@) && $@ ne '' ) {
     $self->{error} = $@;
@@ -483,25 +483,26 @@ sub _readGraphLayout
 		     $proc->{buflen} );
   if ( !defined($rv) && $! == EAGAIN ) {
     # Would block, don't do anything right now
-    return;
+    return 0;
   }
 
   elsif ( $rv == 0 ) {
     # 0 bytes read -- EOF
     $proc->{eof} = 1;
-    return;
+    return 0;
   }
 
   else {
     $proc->{buflen} += $rv;
     $proc->{goodread} = 1;
+
+    # Go ahead and split the output that's available now,
+    # so that this part at least is potentially spread out in time
+    # while the background process keeps running.
+    $self->_splitGraphLayout ();
+
+    return $rv;
   }
-
-
-  # Go ahead and split the output that's available now,
-  # so that this part at least is potentially spread out in time
-  # while the background process keeps running.
-  $self->_splitGraphLayout ();
 }
 
 
@@ -547,7 +548,7 @@ sub _parseLayout
   my $accum = undef;
 
   foreach ( @$layoutLines ) {
-    s/\r//g;  # get rid of any returns ( does text files)
+    s/\r//g;  # get rid of any returns ( dos text files)
 
     chomp;
 
@@ -563,7 +564,7 @@ sub _parseLayout
       next;
     }
 
-    #STDERR->print ( "layout: $_\n" );
+    #STDERR->print ( "gv _parse: $_\n" );
 
     if ( /^\s+node \[(.+)\];/ ) {
       $self->_parseAttrs ( "$1", \%allNodeAttrs );
@@ -662,19 +663,6 @@ sub _parseLayout
 
   }
 
-
-  # Move everything up from the negative y area (quadrant IV)
-  # to positive y area (quadrant I) -- every thing gets initially
-  # create in quadrant IV since dot's origin is bottom-left, whereas
-  # canvas origin is top-left
-  # Also include a bit of margin to ensure that everything fits within
-  # the displayed area.
-  my $newW = defined($maxX)? abs($maxX - $minX) : 0.0;
-  my $newH = defined($maxY)? abs($maxY - $minY) : 0.0;
-  my $marginX =  $newW * $self->{margin};
-  my $marginY =  $newH * $self->{margin};
-  #$self->move ( 'all', $marginX, $marginY + $newH );
-  $self->move ( 'all', 0, $newH - $marginY );
 }
 
 
@@ -818,6 +806,9 @@ sub _createNode
 		  : 'black' );
   my $fill = ( defined($attrs{fillcolor})? $self->_tryColor($attrs{fillcolor})
 	       : $self->cget('-background') );
+  my $fontcolor = ( defined($attrs{fontcolor})
+		    ? $self->_tryColor($attrs{fontcolor})
+		    : 'black' );
   my $shape = $attrs{shape} || '';
 
   foreach my $style ( split ( /,/, $attrs{style}||'' ) ) {
@@ -863,7 +854,7 @@ sub _createNode
       $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
       @args = ( ($x1 + $x2)/2, -1*($y2 + $y1)/2, -text => $label,
 		-anchor => 'center', -justify => 'center',
-		-tags => $tags );
+		-tags => $tags, -fill => $fontcolor );
       push @args, ( -state => 'disabled' );
       $self->createText ( @args );
     }
@@ -1132,6 +1123,8 @@ sub _createEdge
   # Parse the edge position
   my $pos = $attrs{pos} || return;
   my ($startEndCoords,@coords) = $self->_parseEdgePos ( $pos );
+  my $arrowhead = $attrs{arrowhead};
+  my $arrowtail = $attrs{arrowtail};
 
   my @args = ();
 
@@ -1182,13 +1175,17 @@ sub _createEdge
 
   #STDERR->printf ( "createEdge: $n1->$n2 ($x1,$y1) ($x2,$y2)\n" );
   if ( defined($startEndCoords->{s}) &&
-       defined($startEndCoords->{e}) ) { # two-sided arrow
+       defined($startEndCoords->{e}) &&
+       (not defined $arrowhead) &&
+       (not defined $arrowtail) ) { # two-sided arrow
     push @args, -arrow => 'both';
   }
-  elsif ( defined($startEndCoords->{e}) ) { # arrow just at the end
+  elsif ( defined($startEndCoords->{e}) &&
+	  (not defined $arrowhead) ) { # arrow just at the end
     push @args, -arrow => 'last';	
   }
-  elsif ( defined($startEndCoords->{s}) ) { # arrow just at the start
+  elsif ( defined($startEndCoords->{s}) &&
+	  (not defined $arrowtail) ) { # arrow just at the start
     push @args, -arrow => 'first';	
   }
 
@@ -1215,6 +1212,51 @@ sub _createEdge
   # Create the line
   $self->createLine ( @args, -smooth => 1, -tags => $tags );
 
+  # Create the arrowhead (at end of line)
+  if ( defined($arrowhead) && $arrowhead =~ /^(.*)dot$/ ) {
+    my $modifier = $1;
+
+    # easy implementation for calculating the arrow position
+    my ($x1, $y1) = @newCoords[(@newCoords-2), (@newCoords-1)];
+    my ($x2, $y2) = @newCoords[(@newCoords-4), (@newCoords-3)];
+    my $x = ($x1 + $x2)/2;
+    my $y = ($y1 + $y2)/2;
+    my @args = ($x-4, -1*($y-4), $x+4, -1*($y+4));
+
+    # check for modifiers
+    if ($modifier eq "o") {
+      push @args, -fill => $self->cget('-background');
+    } else {
+      push @args, -fill => ( defined($color)?
+			     $self->_tryColor($color) : 'black' );
+    }
+
+    # draw
+    $self->createOval ( @args );
+  }
+
+  # Create the arrowtail (at start of line)
+  if ( defined($arrowtail) && $arrowtail =~ /^(.*)dot$/ ) {
+    my $modifier = $1;
+
+    # easy implementation for calculating the arrow position
+    my ($x1, $y1) = @newCoords[0, 1];
+    my ($x2, $y2) = @newCoords[2, 3];
+    my $x = ($x1 + $x2)/2;
+    my $y = ($y1 + $y2)/2;
+    my @args = ($x-4, -1*($y-4), $x+4, -1*($y+4));
+
+    # check for modifiers
+    if ($modifier eq "o") {
+      push @args, -fill => $self->cget('-background');
+    } else {
+      push @args, -fill => ( defined($color)?
+			     $self->_tryColor($color) : 'black' );
+    }
+
+    # draw
+    $self->createOval ( @args );
+  }
 
   # Create optional label
   my $label = $attrs{label};
@@ -1345,7 +1387,8 @@ sub _updateScrollRegion
   return 0 unless defined $x1;
 
   # Set canvas size from graph bounding box
-  $self->configure ( -scrollregion => [ $x1, $y1, $x2, $y2 ],
+  my $m = 0;#$self->{margin};
+  $self->configure ( -scrollregion => [ $x1-$m, $y1-$m, $x2+$m, $y2+$m ],
 		     -confine => 1 );
 
   # Reset original scale factor
@@ -1362,11 +1405,11 @@ sub _updateScrollRegion
 ######################################################################
 sub _scaleAndMoveView
 {
-  my ($self, $scale, %opt) = @_;
+  my ($self, $scale, $x, $y) = @_;
 
   $self->scale ( 'all' => 0, 0, $scale, $scale );
   my $new_scaled = $self->{_scaled} * $scale;
-  #STDERR->printf ( "scaled: %s -> %s\n",
+  #STDERR->printf ( "\nscaled: %s -> %s\n",
   #		       $self->{_scaled}, $new_scaled );
 
   # Scale the fonts:
@@ -1399,15 +1442,18 @@ sub _scaleAndMoveView
   $self->configure ( -scrollregion => $sr );
 
   # Change the view to center on correct area
-  if ( defined $opt{xview} ) {
-    my $xpct = $opt{xview}*$scale / $sr->[2];
-    $self->xview ( moveto => $xpct );
-  }
-  if ( defined $opt{yview} ) {
-    my $ypct = $opt{yview}*$scale / $sr->[3];
-    $self->yview ( moveto => $ypct );
-  }
+  # $x and $y are expected to be coords in the pre-scaled system
+  my ($left, $right) = $self->xview;
+  my ($top, $bot) = $self->yview;
+  my $xpos = ($x*$scale-$sr->[0])/($sr->[2]-$sr->[0]) - ($right-$left)/2.0;
+  my $ypos = ($y*$scale-$sr->[1])/($sr->[3]-$sr->[1]) - ($bot-$top)/2.0;
+  $self->xview( moveto => $xpos );
+  $self->yview( moveto => $ypos );
 
+  #($left, $right) = $self->xview;
+  #($top, $bot) = $self->yview;
+  #STDERR->printf( "scaled: midx=%s midy=%s\n",
+  #		  ($left+$right)/2.0, ($top+$bot)/2.0 );
   1;
 }
 
@@ -1572,9 +1618,10 @@ sub _startZoom
 		      }
 
 		      # Scale everying up / down
-		      $self->_scaleAndMoveView ( $scale, 
-						 xview => $zoomCoords[0],
-						 yview => $zoomCoords[1] );
+		      $self->_scaleAndMoveView
+			( $scale,
+			  ($zoomCoords[0]+$zoomCoords[2])/2.0,
+			  ($zoomCoords[1]+$zoomCoords[3])/2.0 );
 		    });
 
   1;
@@ -1646,19 +1693,17 @@ sub _startScroll
 		      #STDERR->printf ( "Scrolling: dx=$dx, dy=$dy\n" );
 
                       # Feels better is scroll speed is reduced.
-                      $dx *= .7;
-                      $dy *= .7;
+		      # Also is more natural inverted, feeld like dragging
+		      # the canvas
+                      $dx *= -.9;
+                      $dy *= -.9;
 
-		      # Update the display region
-		      my @sr = $self->cget( '-scrollregion' );
-                      my $sr = \@sr;
-                      if ( @sr == 1 ) { $sr = $sr[0]; }
-		      $self->configure ( -scrollregion => $sr ); # Why is this needed?
                       my ($xv) = $self->xview();
                       my ($yv) = $self->yview();
+		      my @sr = $self->cget( '-scrollregion' );
                       #STDERR->printf ( "  xv=$xv, yv=$yv\n" );
-                      my $xpct = $xv + $dx / $sr->[2];
-                      my $ypct = $yv + $dy / $sr->[3];
+                      my $xpct = $xv + $dx/($sr[2]-$sr[0]);
+                      my $ypct = $yv + $dy/($sr[3]-$sr[1]);
                       #STDERR->printf ( "  xpct=$xpct, ypct=$ypct\n" );
                       $self->xview ( moveto => $xpct );
                       $self->yview ( moveto => $ypct );
@@ -1783,9 +1828,9 @@ sub fit
     max ( $scalex, $scaley );
   }
 
-  $self->_scaleAndMoveView ( $scale,
-			     xview => 0,
-			     yview => 0 );
+  $self->_scaleAndMoveView ( $scale, 0, 0 );
+  $self->xview( moveto => 0 );
+  $self->yview( moveto => 0 );
 
   1;
 }
@@ -1799,12 +1844,6 @@ sub zoom
 {
   my ($self, $dir, $scale) = @_;
 
-  my ($xv) = $self->xview();
-  my ($yv) = $self->yview();
-  my ($x1,$y1,$x2,$y2) = $self->bbox('all');
-  my $w = abs($x2-$x1);
-  my $h = abs($y2-$y1);
-
   if ( $dir eq '-in' ) {
     # Make things bigger
   }
@@ -1813,9 +1852,75 @@ sub zoom
     $scale = 1 / $scale;
   }
 
+  my ($xv1,$xv2) = $self->xview();
+  my ($yv1,$yv2) = $self->yview();
+  my $xvm = ($xv2 + $xv1)/2.0;
+  my $yvm = ($yv2 + $yv1)/2.0;
+  my ($l, $t, $r, $b) = $self->cget( -scrollregion );
+
   $self->_scaleAndMoveView ( $scale,
-			     xview => $xv * $w * $scale,
-			     yview => $yv * $h * $scale );
+			     $l + $xvm *($r - $l),
+			     $t + $yvm *($b - $t) );
+
+  1;
+}
+
+
+sub zoomTo
+{
+  my ($self, $tagOrId) = @_;
+
+  $self->fit();
+
+  my @bb = $self->bbox( $tagOrId );
+  return unless @bb == 4 && defined($bb[0]);
+
+  my $w = $bb[2] - $bb[0];
+  my $h = $bb[3] - $bb[1];
+  my $scale = 2;
+  my $x1 = $bb[0] - $scale * $w;
+  my $y1 = $bb[1] - $scale * $h;
+  my $x2 = $bb[2] + $scale * $w;
+  my $y2 = $bb[3] + $scale * $h;
+
+  #STDERR->printf("zoomTo:  bb = @bb\n".
+  #		 "         w=$w h=$h\n".
+  #		 "         x1,$y1, $x2,$y2\n" );
+
+  $self->zoomToRect( $x1, $y1, $x2, $y2 );
+}
+
+
+sub zoomToRect
+{
+  my ($self, @box) = @_;
+
+  # make sure x1,y1 = lower left, x2,y2 = upper right
+  ($box[0],$box[2]) = ($box[2],$box[0]) if $box[2] < $box[0];
+  ($box[1],$box[3]) = ($box[3],$box[1]) if $box[3] < $box[1];
+
+  # What is the scale relative to current bounds?
+  my ($l,$r) = $self->xview;
+  my ($t,$b) = $self->yview;
+  my $curr_w = $r - $l;
+  my $curr_h = $b - $t;
+
+  my @sr = $self->cget( -scrollregion );
+  my $sr_w = $sr[2] - $sr[0];
+  my $sr_h = $sr[3] - $sr[1];
+  my $new_l = max(0.0,$box[0] / $sr_w);
+  my $new_t = max(0.0,$box[1] / $sr_h);
+  my $new_r = min(1.0,$box[2] / $sr_w);
+  my $new_b = min(1.0,$box[3] / $sr_h);
+
+  my $new_w = $new_r - $new_l;
+  my $new_h = $new_b - $new_t;
+
+  my $scale = max( $curr_w/$new_w, $curr_h/$new_h );
+
+  $self->_scaleAndMoveView( $scale,
+			    ($box[0] + $box[2])/2.0,
+			    ($box[1] + $box[3])/2.0 );
 
   1;
 }
@@ -2192,7 +2297,8 @@ Jeremy Slade E<lt>jeremy@jkslade.netE<gt>
 Other contributors:
 John Cerney,
 Slaven Rezic,
-Mike Castle
+Mike Castle,
+Tobias Lorenz
 
 =head1 COPYRIGHT AND LICENSE
 

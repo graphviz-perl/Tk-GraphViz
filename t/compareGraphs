@@ -53,7 +53,7 @@ my $imagepane = $leftFrame->Scrolled(Pane,
 	-sticky => 'nsew',
 );
 
-$imagepane->pack(-fill => 'both', -expand => 1,  side => 'top');
+$imagepane->pack(-fill => 'both', -expand => 1,  -side => 'top');
 
 my $imageLabel = $imagepane->Label( -image => $image)->pack(-fill => 'both', -expand => 1);
 

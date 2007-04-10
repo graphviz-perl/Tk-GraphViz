@@ -1,5 +1,15 @@
 Revision history for Perl extension Tk::GraphViz.
 
+0.15  Thu Jun 23 11:12:20 MDT 2005
+	- Fixed issue with stopping dot subprocess already in progress
+	
+0.14  Thu Apr 21 14:12:58 MDT 2005
+	- Use '>&STDERR' with IPC::Open3::open3()
+	
+0.13  Tue Feb 15 22:24:15 MST 2005
+	- Handle negative font sizes (John Cerney)
+	- Better DOS/Win support (John Cerney)
+
 0.11  Thu Sep 16 15:46:18 PDT 2004
 	- use reaper to handle child processes
 
