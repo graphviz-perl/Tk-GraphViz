@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '0.90';
+$Tk::GraphViz::VERSION = '1.00';
 
 package Tk::GraphViz;
 
@@ -349,13 +349,13 @@ sub _startDot
   confess "Can't read file: $filename" 
     unless -r $filename;
 
-  my $layout_cmd = $self->_makeLayoutCommand ( $filename, %opt );
+  my @layout_cmd = $self->_makeLayoutCommand ( $filename, %opt );
 
   # Simple, non-asynchronous mode: execute the
   # process synchnronously and wait for all its output
   if ( !defined($opt{async}) || !$opt{async} ) {
     my $pipe = new IO::Pipe;
-    $pipe->reader ( $layout_cmd );
+    $pipe->reader ( @layout_cmd );
     while ( <$pipe> ) { push @{$self->{layout}}, $_; }
     if ( $opt{delete_file} ) {
       unlink $filename;
@@ -372,7 +372,7 @@ sub _startDot
   my $proc = {};
   my $ppid = $$;
   eval {
-    $proc->{pid} = open3 ( $in, $out, '>&STDERR', $layout_cmd );
+    $proc->{pid} = open3 ( $in, $out, '>&STDERR', @layout_cmd );
     reapPid ( $proc->{pid} );
 
     # Fork failure?
@@ -462,7 +462,7 @@ sub _makeLayoutCommand
     }
   }
 
-  return "$layout_cmd @opts -Tdot $filename";
+  return ($layout_cmd, @opts, '-Tdot', $filename);
 }
 
 
@@ -736,8 +736,7 @@ sub _createSubgraph
       @styleArgs = (-dash => '.');
     }
     elsif ( $style =~ /filled/ ) {
-      $fill = ( defined($attrs{fillcolor})?
-		$self->_tryColor($attrs{fillcolor}) : $color );
+      $fill = ( $self->_tryColor($attrs{fillcolor}) || $color );
     }
     elsif( $style =~ /bold/ ) {
       # Bold outline, gets wider line
@@ -802,19 +801,16 @@ sub _createNode
 
   my @args = ();
 
-  my $outline = ( defined($attrs{color})? $self->_tryColor($attrs{color})
-		  : 'black' );
-  my $fill = ( defined($attrs{fillcolor})? $self->_tryColor($attrs{fillcolor})
-	       : $self->cget('-background') );
-  my $fontcolor = ( defined($attrs{fontcolor})
-		    ? $self->_tryColor($attrs{fontcolor})
-		    : 'black' );
+  my $outline = $self->_tryColor($attrs{color}) || 'black';
+  my $fill = $self->_tryColor($attrs{fillcolor}) || $self->cget('-background');
+  my $fontcolor = $self->_tryColor($attrs{fontcolor}) || 'black';
   my $shape = $attrs{shape} || '';
 
   foreach my $style ( split ( /,/, $attrs{style}||'' ) ) {
     if ( $style eq 'filled' ) {
-      $fill = ( defined($attrs{color})? $self->_tryColor($attrs{color})
-		: 'lightgrey' );
+      $fill = ( $self->_tryColor($attrs{fillcolor}) ||
+		$self->_tryColor($attrs{color}) ||
+		'lightgrey' );
     }
     elsif ( $style eq 'invis' ) {
       $outline = undef;
@@ -888,6 +884,7 @@ my %polyShapes =
     octagon => [ [ 0, .3 ], [ 0, .7 ], [ .3, 1 ], [ .7, 1 ],
 		 [ 1, .7 ], [ 1, .3 ], [ .7, 0 ], [ .3, 0 ] ],
     trapezium => [ [ 0, 1 ], [ .21, 0 ], [ .79, 0 ], [ 1, 1 ] ],
+    invtrapezium => [ [ 0, 0], [ .21, 1 ], [ .79, 1 ], [ 1, 0 ] ],
     parallelogram => [ [ 0, 1 ], [ .20, 0 ], [ 1, 0 ], [ .80, 1 ] ],
     house => [ [ 0, .9 ], [ 0, .5 ], [ .5, 0 ], [ 1, .5 ], [ 1, .9 ] ],
     invhouse => [ [ 0, .1 ], [ 0, .5 ], [ .5, 1 ], [ 1, .5 ], [ 1, .1 ] ],
@@ -1207,7 +1204,7 @@ sub _createEdge
     }
   }
 
-  push @args, -fill => ( defined($color)? $self->_tryColor($color) : 'black' );
+  push @args, -fill => ( $self->_tryColor($color) || 'black' );
 
   # Create the line
   $self->createLine ( @args, -smooth => 1, -tags => $tags );
@@ -1227,8 +1224,7 @@ sub _createEdge
     if ($modifier eq "o") {
       push @args, -fill => $self->cget('-background');
     } else {
-      push @args, -fill => ( defined($color)?
-			     $self->_tryColor($color) : 'black' );
+      push @args, -fill => ($self->_tryColor($color) || 'black');
     }
 
     # draw
@@ -1250,8 +1246,7 @@ sub _createEdge
     if ($modifier eq "o") {
       push @args, -fill => $self->cget('-background');
     } else {
-      push @args, -fill => ( defined($color)?
-			     $self->_tryColor($color) : 'black' );
+      push @args, -fill => ($self->_tryColor($color) || 'black');
     }
 
     # draw
@@ -1825,7 +1820,7 @@ sub fit
   my $scaley = $h / $dy;
   my $scale = min ( $scalex, $scaley );
   if ( $scalex >= 1.0 && $scaley >= 1.0 ) {
-    max ( $scalex, $scaley );
+    $scale = max ( $scalex, $scaley );
   }
 
   $self->_scaleAndMoveView ( $scale, 0, 0 );
@@ -2019,6 +2014,8 @@ sub createText
 sub _tryColor
 {
   my ($self,$color) = @_;
+
+  return undef unless defined($color);
 
   # Special cases
   if( $color eq 'crimson' ) {
@@ -2295,14 +2292,17 @@ See http://www.graphviz.org/ for more info on the graphviz tools.
 Jeremy Slade E<lt>jeremy@jkslade.netE<gt>
 
 Other contributors:
-John Cerney,
-Slaven Rezic,
 Mike Castle,
-Tobias Lorenz
+John Cerney,
+Phi Kasten,
+Tobias Lorenz,
+Charles Minc,
+Reiner Post,
+Slaven Rezic
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2003 by Jeremy Slade
+Copyright 2003-2008 by Jeremy Slade
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

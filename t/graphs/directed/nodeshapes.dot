@@ -47,7 +47,7 @@ digraph test {
 	invtriangle [shape=invtriangle];
 	doublecircle -> doubleoctagon;
 	doubleoctagon -> tripleoctagon;
-	tripleoctagon -> invtriange;
+	tripleoctagon -> invtriangle;
 	};
   { graph [rank=same];
 	invtrapezium [shape=invtrapezium];

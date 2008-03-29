@@ -1,5 +1,15 @@
 Revision history for Perl extension Tk::GraphViz.
 
+1.00  Sat Mar 29 12:38:22 MDT 2008
+	- Use layout_cmd as an array so shell isn't require to
+	  exec it (Reiner Post);
+	- Fixed used of fillcolor vs color for filled nodes (Phil Kasten);
+	- Added missing 'invtrapezium' shape (Charles Minc)
+
+0.90  Thu Apr 09 23:27:55 MDT 2007
+	- Fixes for zooming
+	- Changes to support fontcolor, arrowhead/arrowtail (Tobias Lorenz)
+	
 0.15  Thu Jun 23 11:12:20 MDT 2005
 	- Fixed issue with stopping dot subprocess already in progress
 	
