@@ -1,7 +1,7 @@
 # -*-Perl-*-
 use strict;
 
-$Tk::GraphViz::VERSION = '1.00';
+$Tk::GraphViz::VERSION = '1.01';
 
 package Tk::GraphViz;
 
@@ -888,7 +888,15 @@ my %polyShapes =
     parallelogram => [ [ 0, 1 ], [ .20, 0 ], [ 1, 0 ], [ .80, 1 ] ],
     house => [ [ 0, .9 ], [ 0, .5 ], [ .5, 0 ], [ 1, .5 ], [ 1, .9 ] ],
     invhouse => [ [ 0, .1 ], [ 0, .5 ], [ .5, 1 ], [ 1, .5 ], [ 1, .1 ] ],
-  );
+    folder => [ [ 0, 0.1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0.1 ],
+                [0.9, 0 ], [0.7 , 0 ] , [0.6, 0.1 ] ],
+    component => [ [ 0, 0 ], [ 0, 0.1 ], [ 0.03, 0.1 ], [ -0.03, 0.1 ],
+                   [ -0.03, 0.3 ], [ 0.03 , 0.3 ], [ 0.03, 0.1 ],
+                   [ 0.03 , 0.3 ], [ 0 , 0.3 ], [ 0, 0.7 ], [ 0.03, 0.7 ],
+                   [ -0.03, 0.7 ], [ -0.03, 0.9 ], [ 0.03 , 0.9 ],
+                   [ 0.03, 0.7 ], [ 0.03 , 0.9 ], [ 0 , 0.9 ],
+                   [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] ],
+);
 
 sub _createShapeNode
 {
@@ -2295,9 +2303,10 @@ Other contributors:
 Mike Castle,
 John Cerney,
 Phi Kasten,
+Jogi Kuenstner
 Tobias Lorenz,
 Charles Minc,
-Reiner Post,
+Reinier Post,
 Slaven Rezic
 
 =head1 COPYRIGHT AND LICENSE

@@ -6,20 +6,16 @@ digraph test {
 
  { graph [rank=same];
 	box [shape=box];
-	polygon [shape=polygon,sides=7];
 	ellipse [shape=ellipse];
 	circle [shape=circle];
-	box -> polygon;
-	polygon -> ellipse;
+	box -> ellipse;
 	ellipse -> circle;
 	};
  { graph [rank=same];
 	point [shape=point];
-	egg [shape=egg];
 	triangle [shape=triangle];
 	plaintext [shape=plaintext];
-	point -> egg;
-	egg -> triangle;
+	point -> triangle;
 	triangle -> plaintext;
 	};
   { graph [rank=same];
@@ -52,18 +48,16 @@ digraph test {
   { graph [rank=same];
 	invtrapezium [shape=invtrapezium];
 	invhouse [shape=invhouse];
-	Mdiamond [shape=Mdiamond];
-	Msquare [shape=Msquare];
 	invtrapezium -> invhouse;
-	invhouse -> Mdiamond;
-	Mdiamond -> Msquare;
 	};
   { graph [rank=same];
-	Mcircle [shape=Mcircle];
 	rect [shape=rect];
 	rectangle [shape=rectangle];
-	Mcircle -> rect;
+        folder [shape=folder];
+        component [shape=component];
 	rect -> rectangle;
+        rectangle -> folder;
+        folder -> component;
 	};
 
   box -> point;

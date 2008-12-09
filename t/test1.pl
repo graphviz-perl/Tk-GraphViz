@@ -31,6 +31,7 @@ $g->add_node ( '1', color => 'red', fillcolor=>'cyan',
 	       style=>'bold', cluster => 'xyz' );
 $g->add_node ( '2', color => 'blue', cluster => 'xyz' );
 $gv->show ( $g );
+$gv->createBindings();
 #$gv->show ( 'test1.dot' );
 
 $gv->bind ( 'node', '<Any-Enter>', sub {
