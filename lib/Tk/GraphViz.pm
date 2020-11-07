@@ -778,6 +778,8 @@ sub _createNode
 {
   my ($self, $name, %attrs) = @_;
 
+  return unless $attrs{pos}; # node specified elsewhere but also in subgraph
+
   my ($x,$y) = split(/,/, $attrs{pos});
   my $dpi = $self->{dpi};
   my $w = $attrs{width} * $dpi; #inches
@@ -792,7 +794,6 @@ sub _createNode
   if ( $label eq '\N' ) { $label = $attrs{label} = $name; }
 
   #STDERR->printf ( "createNode: $name \"$label\" ($x1,$y1) ($x2,$y2)\n" );
-
 
   # Node shape
   my $tags = [ node => $name, %attrs ];
