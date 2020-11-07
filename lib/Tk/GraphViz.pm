@@ -1869,7 +1869,9 @@ sub zoom
   my ($yv1,$yv2) = $self->yview();
   my $xvm = ($xv2 + $xv1)/2.0;
   my $yvm = ($yv2 + $yv1)/2.0;
-  my ($l, $t, $r, $b) = $self->cget( -scrollregion );
+  die "Empty scrollregion - have you called this before show?"
+    unless my @sr = $self->cget( -scrollregion );
+  my ($l, $t, $r, $b) = @sr;
 
   $self->_scaleAndMoveView ( $scale,
 			     $l + $xvm *($r - $l),
