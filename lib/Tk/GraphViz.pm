@@ -4,7 +4,7 @@ package Tk::GraphViz;
 use strict;
 use warnings;
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 use Tk 800.020;
 use Tk::Font;

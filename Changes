@@ -1,3 +1,4 @@
+1.02 2020-11-07
 - parsing improvements to account for DOT 2.43 changing output format a bit
 - parsing fix from RT#79377 - thanks @geoffhart
 - ->show also calls MainWindow->update just in case - RT#64089
