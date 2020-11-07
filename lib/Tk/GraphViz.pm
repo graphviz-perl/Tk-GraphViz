@@ -279,9 +279,15 @@ sub _createDotFile
       }
       $fh->close;
       $delete_file = 1;
-    }
-
-    elsif ( $ref->isa('IO::Handle') ) {
+    } elsif ( $ref->isa('GraphViz2') ) {
+      ($filename, my $fh) = $self->_mktemp();
+      eval { print $fh $graph->dot_input };
+      if ( $@ ) {
+	die __PACKAGE__.": Error calling GraphViz2::dot_input on $graph: $@";
+      }
+      $fh->close;
+      $delete_file = 1;
+    } elsif ( $ref->isa('IO::Handle') ) {
       ($filename, my $fh) = $self->_mktemp();
       while ( <$graph> ) { $fh->print; }
       $fh->close;
@@ -2147,7 +2153,7 @@ Tk::GraphViz - Render an interactive GraphViz graph
 
 =head1 DESCRIPTION
 
-The B<GraphViz> widget is derived from B<Tk::Canvas>.  It adds the ability to render graphs in the canvas.  The graphs can be specified either using the B<DOT> graph-description language, or using via a B<GraphViz> object.
+The B<GraphViz> widget is derived from B<Tk::Canvas>.  It adds the ability to render graphs in the canvas.  The graphs can be specified either using the B<DOT> graph-description language, or using via a L<GraphViz> or L<GraphViz2> object.
 
 When B<show()> is called, the graph is passed to the B<dot> command to generate the layout info.  That info is then used to create rectangles, lines, etc in the canvas that reflect the generated layout.
 
