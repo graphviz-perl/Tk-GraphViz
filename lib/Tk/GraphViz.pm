@@ -286,6 +286,8 @@ sub _createDotFile
       while ( <$graph> ) { $fh->print; }
       $fh->close;
       $delete_file = 1;
+    } else {
+      confess "Unknown object type '$graph'";
     }
   }
 
