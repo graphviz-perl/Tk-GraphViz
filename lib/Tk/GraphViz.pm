@@ -1295,7 +1295,7 @@ sub _parseEdgePos
   my %startEnd;
 
   # Process all start/end points (could be none, 1, or 2)
-  while ( $pos =~ s/^([se])\s*\,\s*(\d+)\s*\,\s*(\d+)\s+// ) {
+  while ( $pos =~ s/^([se])\s*\,\s*([\d.]+)\s*\,\s*([\d.]+)\s+// ) {
     my ($where, $x, $y) = ($1, $2, $3);
     $startEnd{$where} = [ $x, $y ];
   }
