@@ -14,7 +14,7 @@ use Tk::GraphViz::parseRecordLabel;
 
 use base qw(Tk::Derived Tk::Canvas);
 
-#use warnings;
+use warnings;
 use IO qw(Handle File Pipe);
 use Carp;
 use Reaper qw( reapPid pidStatus );
@@ -77,6 +77,7 @@ sub show
   my ($self, $graph, %opt) = @_;
 
   die __PACKAGE__.": Nothing to show" unless defined $graph;
+  $self->MainWindow->update;
 
   # Layout is actually done in the background, so the graph
   # will get updated when the new layout is ready
