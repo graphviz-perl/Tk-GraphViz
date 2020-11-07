@@ -564,7 +564,7 @@ sub _parseLayout
       next;
     }
 
-    #STDERR->print ( "gv _parse: $_\n" );
+    #STDERR->print ( "gv _parse: '$_'\n" );
 
     if ( /^\s+node \[(.+)\];/ ) {
       $self->_parseAttrs ( "$1", \%allNodeAttrs );
@@ -2034,6 +2034,8 @@ sub _tryColor
     return $self->_hsb2rgb($hue,$sat,$bright);
   }
 
+  return 'black' if !length $color; # sensible default
+
   # Don't check color if it is a hex rgb value
   unless( $color =~ /^\#\w+/ ) {
     my $tryColor = $color;
@@ -2041,7 +2043,7 @@ sub _tryColor
     my @rgb;
     eval { @rgb = $self->rgb($tryColor); };
     if ($@) {
-      warn __PACKAGE__.": Unkown color $color, using black instead\n";
+      warn __PACKAGE__.": Unknown color '$color', using black instead\n";
       $color = 'black';
     } else {
       $color = $tryColor;
