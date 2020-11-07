@@ -309,7 +309,7 @@ sub _createDotFile
     }
 
     else {
-      die __PACKAGE__.": Bad graph";
+      die __PACKAGE__.": Bad graph: '$graph'";
     }
   }
 
