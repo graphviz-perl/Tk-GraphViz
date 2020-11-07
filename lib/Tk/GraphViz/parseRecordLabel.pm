@@ -29,7 +29,8 @@ use strict;
 # (see the pod text in Parse::Yapp module for use and distribution rights)
 #
 
-package Parse::Yapp::Driver;
+package # hide from PAUSE
+  Parse::Yapp::Driver;
 
 require 5.004;
 
