@@ -1,9 +1,10 @@
 # -*-Perl-*-
-use strict;
-
-$Tk::GraphViz::VERSION = '1.01';
-
 package Tk::GraphViz;
+
+use strict;
+use warnings;
+
+our $VERSION = '1.01';
 
 use Tk 800.020;
 use Tk::Font;
@@ -11,10 +12,8 @@ use Tk::Font;
 # Parse::Yapp-generated Parser for parsing record node labels
 use Tk::GraphViz::parseRecordLabel;
 
-
 use base qw(Tk::Derived Tk::Canvas);
 
-use warnings;
 use IO qw(Handle File Pipe);
 use Carp;
 use Reaper qw( reapPid pidStatus );
