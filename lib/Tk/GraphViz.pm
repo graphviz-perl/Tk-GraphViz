@@ -567,22 +567,32 @@ sub _parseLayout
 
     #STDERR->print ( "gv _parse: '$_'\n" );
 
-    if ( /^\s+node \[(.+)\];/ ) {
+    if ( /^\s*(?:di)?graph\s*.*\{\s*$/ ) {
+      # starting line, ignore
+      next;
+    }
+
+    if ( /^\s*\]\s*;\s*$/ ) {
+      # end of attributes not finishing on same line as important info, ignore
+      next;
+    }
+
+    if ( /^\s+node\s*\[(.+)(?:\];)?/ ) {
       $self->_parseAttrs ( "$1", \%allNodeAttrs );
       next;
     }
 
-    if ( /^\s+edge \[(.+)\];/ ) {
+    if ( /^\s+edge\s*\[(.+)(?:\];)?/ ) {
       $self->_parseAttrs ( "$1", \%allEdgeAttrs );
       next;
     }
 
-    if ( /^\s+graph \[(.+)\];/ ) {
+    if ( /^\s+graph\s*\[(.+)(?:\];)?/ ) {
       $self->_parseAttrs ( "$1", \%graphAttrs );
       next;
     }
 
-    if ( /^\s+subgraph \S+ \{/ ||
+    if ( /^\s+subgraph\s*.*\s*\{/ ||
          /^\s+\{/ ) {
       push @saveStack, [ {%graphAttrs},
 			 {%allNodeAttrs},
@@ -629,7 +639,7 @@ sub _parseLayout
       }
     }
 
-    if ( /\s+(.+) \-[\>\-] (.+) \[(.+)\];/ ) {
+    if ( /\s*(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
       # Edge
       my ($n1,$n2,$attrs) = ($1,$2,$3);
       my %edgeAttrs = %allEdgeAttrs;
@@ -640,7 +650,7 @@ sub _parseLayout
       $minY = min($minY,$y1);
       $maxX = max($maxX,$x2);
       $maxY = max($maxY,$y2);
-    } elsif ( /\s+(.+) \[(.+)\];/ ) {
+    } elsif ( /\s+(.+?)\s*(?:\[(.+)\];)?/ ) {
       # Node
       my ($name,$attrs) = ($1,$2);
 
@@ -649,7 +659,7 @@ sub _parseLayout
       $name =~ s/\"$//;
 
       my %nodeAttrs = %allNodeAttrs;
-      $self->_parseAttrs ( $attrs, \%nodeAttrs );
+      $self->_parseAttrs ( $attrs, \%nodeAttrs ) if $attrs;
 
       my ($x1,$y1,$x2,$y2) = $self->_createNode ( $name, %nodeAttrs );
       $minX = min($minX,$x1);
@@ -2097,6 +2107,7 @@ sub _hsb2rgb
 ######################################################################
 
 sub min {
+  no warnings 'numeric';
   if ( defined($_[0]) ) {
     if ( defined($_[1]) ) { return ($_[0] < $_[1])? $_[0] : $_[1]; }
     else { return $_[0]; }
@@ -2107,6 +2118,7 @@ sub min {
 }
 
 sub max {
+  no warnings 'numeric';
   if ( defined($_[0]) ) {
     if ( defined($_[1]) ) { return ($_[0] > $_[1])? $_[0] : $_[1]; }
     else { return $_[0]; }
