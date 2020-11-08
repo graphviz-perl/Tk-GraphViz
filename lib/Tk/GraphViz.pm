@@ -2314,6 +2314,8 @@ Lots of DOT language features not yet implemented
 
 =item Edge arrow head types
 
+=back
+
 =head1 ACKNOWLEDGEMENTS
 
 See http://www.graphviz.org/ for more info on the graphviz tools.
