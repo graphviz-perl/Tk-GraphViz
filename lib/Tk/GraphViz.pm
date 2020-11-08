@@ -2253,7 +2253,7 @@ Zoom out by scaling everything down by the given scale factor.  This is equivale
 
     $gv->zoom ( -in => 1/factor )
 
-The factor show be > 1.0 in order to get reasonable behavior.
+The factor should be > 1.0 in order to get reasonable behavior.
 
 =head1 TAGS
 
