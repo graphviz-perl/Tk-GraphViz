@@ -657,7 +657,7 @@ sub _parseLayout
       $minY = min($minY,$y1);
       $maxX = max($maxX,$x2);
       $maxY = max($maxY,$y2);
-    } elsif ( /\s+(.+?)\s*(?:\[(.+)\];)?/ ) {
+    } elsif ( /\s+(.+?)\s*(?:\[(.+)\];)?\s*$/ ) {
       # Node
       my ($name,$attrs) = ($1,$2);
 
