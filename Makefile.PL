@@ -1,5 +1,23 @@
-use 5.006;
+use strict;
+use warnings;
+use File::Spec;
+use File::Temp;
 use ExtUtils::MakeMaker;
+
+sub is_dot_installed {
+  # 1: Create a temp file containing DOT commands.
+  # The EXLOCK option is for BSD-based systems.
+  # newdir() croaks() if it fails, which is what we want.
+  my $temp_dir = File::Temp->newdir('temp.XXXX', CLEANUP => 1, EXLOCK => 0, TMPDIR => 1);
+  my $gv_file = File::Spec->catfile($temp_dir, 'test.gv');
+  open my $fh, ">", $gv_file or die "Can't create temp file: $!\n";
+  print $fh "digraph graph_14 {node_14}\n" or die "Can't write to temp file: $!\n";
+  close $fh or die "Can't close temp file: $!\n";
+  my $stdout = `dot -Tsvg $gv_file`;
+  die "Please install Graphviz from http://www.graphviz.org/\n" if $stdout !~ m|</svg>|;
+}
+
+is_dot_installed();
 
 my $repo = 'graphviz-perl/Tk-GraphViz';
 WriteMakefile(

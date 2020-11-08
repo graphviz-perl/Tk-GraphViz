@@ -1,4 +1,5 @@
 - tests only run when can do display stuff, avoiding false negatives
+- no install if no DOT
 
 1.03 2020-11-08
 - support a GraphViz2 object as input
