@@ -1,3 +1,5 @@
+- tests only run when can do display stuff, avoiding false negatives
+
 1.03 2020-11-08
 - support a GraphViz2 object as input
 

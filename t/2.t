@@ -1,14 +1,18 @@
-use Test::More tests => 7;
-BEGIN { use_ok('Tk::GraphViz') };
-
 # Creates a Tk::GraphViz, without displaying anything.
-# -- still requires connection to display, unfortunately
 # The test is simply to lay-out a simple dot file (test1.dot)
 
+use strict;
+use warnings;
+
+use Test::More;
 use Tk;
+use Tk::GraphViz;
 use File::Basename;
 
-my $mw = new MainWindow();
+my $mw = eval { MainWindow->new() };
+plan skip_all => 'No display' if !Tk::Exists($mw);
+
+plan tests => 6;
 
 my $gv = $mw->GraphViz();
 ok ( $gv );
