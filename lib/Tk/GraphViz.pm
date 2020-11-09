@@ -337,7 +337,7 @@ sub _mktemp
   my $tempDir = $ENV{TEMP} || $ENV{TMP} || '/tmp';
   my $filename = sprintf ( "%s/Tk-GraphViz.dot.$$.%d.dot",
 			   $tempDir, $_mktemp_count++ );
-  my $fh = new IO::File ( $filename, 'w' ) ||
+  my $fh = IO::File->new( $filename, 'w' ) ||
     confess "Can't write temp file: $filename: $!";
   binmode($fh);
   ($filename, $fh);
@@ -362,7 +362,7 @@ sub _startDot
   # Simple, non-asynchronous mode: execute the
   # process synchnronously and wait for all its output
   if ( !defined($opt{async}) || !$opt{async} ) {
-    my $pipe = new IO::Pipe;
+    my $pipe = IO::Pipe->new;
     $pipe->reader ( @layout_cmd );
     while ( <$pipe> ) { push @{$self->{layout}}, $_; }
     if ( $opt{delete_file} ) {
@@ -372,8 +372,8 @@ sub _startDot
   }
 
   # Now execute it
-  my $in = new IO::Handle;
-  my $out = new IO::Handle;
+  my $in = IO::Handle->new;
+  my $out = IO::Handle->new;
   $in->autoflush;
 
   local $@ = undef;
@@ -1080,7 +1080,7 @@ sub _createRecordNode
   my @rectsCoords = map [ split(',',$_) ], @rects;
 
   # Setup to parse the label (Label parser object created using Parse::Yapp)
-  my $parser = new Tk::GraphViz::parseRecordLabel();
+  my $parser = Tk::GraphViz::parseRecordLabel->new();
   $parser->YYData->{INPUT} = $label;
 
   # And parse it...
@@ -2286,7 +2286,7 @@ The following example creates a GraphViz widgets to display a graph from a file 
     use GraphViz;
     use Tk;
 
-    my $mw = new MainWindow ();
+    my $mw = MainWindow->new();
     my $gv = $mw->Scrolled ( 'GraphViz',
                              -background => 'white',
                              -scrollbars => 'sw' )

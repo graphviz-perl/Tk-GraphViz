@@ -26,7 +26,7 @@ unless(@dots){ # get files in the local directory, if none supplied
 	@dots = map "$inputDir/$_", sort @dots;
 }
 
-my $mw = new MainWindow ();
+my $mw = MainWindow->new();
 
 # Frame for the two images
 my $topFrame = $mw->Frame;
