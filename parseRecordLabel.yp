@@ -71,7 +71,7 @@ sub Lexer {
 	# Different Token Types
 
 	# check for tokens '<>{} tokens (Whitespace OK)
-	if( s/^\s*([\<\>\{])//){  # <, > and { with whitespace before
+	if( s/^\s*([\<\>\{])\s*//){  # <, > and { with whitespace around
 		return($1, $1);
 	}
 	if( s/^(\})\s*//){  # }  with whitespace after
