@@ -1990,7 +1990,7 @@ sub createText
     }
 
     # Fix  any escaped chars
-    #   like \} to }, and \\{ to \{
+    #   like \\{ to \{, and \} to }
     $label =~ s/\\(?!\\)(.)/$1/g;
 
     $attrs{-text} = $label;
@@ -2003,36 +2003,27 @@ sub createText
       $tags{label} = $label if(defined($tags{label}));
       $attrs{-tags} = [%tags];
     }
-
-    # Get the default font, if not defined already
-    my $fonts = $self->{fonts};
-    unless(defined($fonts->{_default}) ){
-
-      # Create dummy item, so we can see what font is used
-      my $dummyID = $self->SUPER::createText 
-	( 100,25, -text => "You should never see this" );
-      my $defaultfont = $self->itemcget($dummyID,-font);
-
-      # Make a copy that we will mess with:
-      $defaultfont = $defaultfont->Clone;
-      $fonts->{_default}{font}     = $defaultfont;
-      $fonts->{_default}{origSize} = $defaultfont->actual(-size);
-
-      # Delete the dummy item
-      $self->delete($dummyID);
-    }
-
-    # Assign the default font
-    unless( defined($attrs{-font}) ){
-      $attrs{-font} = $fonts->{_default}{font};
-    }
-
+    $attrs{-font} = $self->_defaultFont unless defined $attrs{-font};
   }
 
   # Call Inherited createText
   $self->SUPER::createText ( $x, $y, %attrs );
 }
 
+sub _defaultFont {
+  my ($self) = @_;
+  my $fonts = $self->{fonts};
+  return $fonts->{_default}{font} if defined $fonts->{_default}{font};
+  # Create dummy item, so we can see what font is used
+  my $dummyID = $self->SUPER::createText(100,25, -text => "Should never see");
+  # Make a copy that we will mess with:
+  my $defaultfont = $self->itemcget($dummyID,-font)->Clone;
+  $fonts->{_default}{font}     = $defaultfont;
+  $fonts->{_default}{origSize} = $defaultfont->actual(-size);
+  # Delete the dummy item
+  $self->delete($dummyID);
+  $fonts->{_default}{font};
+}
 
 ######################################################################
 #  Sub to try a color name, returns the color name if recognized
