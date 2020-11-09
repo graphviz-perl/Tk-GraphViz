@@ -608,27 +608,10 @@ sub new {
 	[#Rule 1
 		 'rlabel', 2,
 sub
-#line 14 "parseRecordLabel.yp"
+#line 12 "parseRecordLabel.yp"
 {
 					shift;
-					my ($arg1, $arg2) = @_;
-					my (@arg1, @arg2);
-
-					# flatten any args
-					if( ref($arg1) eq 'ARRAY' ){
-						@arg1 = @$arg1;
-					}
-					else{
-						@arg1 = ($arg1);
-					}
-					if( ref($arg2) eq 'ARRAY' ){
-						@arg2 = @$arg2;
-					}
-					elsif(defined($arg2)){
-						@arg2 = ($arg2);
-					}
-
-					return [ @arg1, @arg2 ];
+					[ map +(ref() eq 'ARRAY' ? @$_ : $_), grep defined, @_ ];
 				}
 	],
 	[#Rule 2
@@ -637,7 +620,7 @@ sub
 	[#Rule 3
 		 'optMoreFields', 2,
 sub
-#line 39 "parseRecordLabel.yp"
+#line 20 "parseRecordLabel.yp"
 { #print "rlabel = ".Data::Dumper::Dumper($_[2])." in optMoreFields\n";
 					return $_[2]; }
 	],
@@ -647,25 +630,25 @@ sub
 	[#Rule 5
 		 'field', 1,
 sub
-#line 44 "parseRecordLabel.yp"
+#line 25 "parseRecordLabel.yp"
 { return $_[1]; }
 	],
 	[#Rule 6
 		 'field', 3,
 sub
-#line 45 "parseRecordLabel.yp"
+#line 26 "parseRecordLabel.yp"
 { return $_[2]; }
 	],
 	[#Rule 7
 		 'boxlabel', 2,
 sub
-#line 48 "parseRecordLabel.yp"
+#line 29 "parseRecordLabel.yp"
 { return { $_[1] || '', $_[2] } ;  }
 	],
 	[#Rule 8
 		 'optName', 3,
 sub
-#line 51 "parseRecordLabel.yp"
+#line 32 "parseRecordLabel.yp"
 { return $_[2] }
 	],
 	[#Rule 9
@@ -676,9 +659,7 @@ sub
     bless($self,$class);
 }
 
-#line 56 "parseRecordLabel.yp"
-
-
+#line 36 "parseRecordLabel.yp"
 
 
 sub Error {
@@ -695,7 +676,6 @@ sub Error {
     print "Parse Error, Got token/value '$token', '$value'; Expected token '$expected'\n";
     print "Near line :\n".$input."\n";
     exit(1);
-
 }
 
 sub Lexer {
@@ -703,26 +683,21 @@ sub Lexer {
 
     my @expect = $parser->YYExpect;
 
-
     # If at the end of the string, and expecting a T_string token
     #   Return a null t_string
     #   This enables strings like '<f0> 0x10ba8| <f1>' to be parsed
     #   correctly
     if( $parser->YYData->{INPUT} eq '' && @expect == 1 && $expect[0] eq 'T_string'){
-    	return('T_string','');
+	return('T_string','');
     }
 
     defined($parser->YYData->{INPUT})
     or  return('',undef);
 
-
-
     for( $parser->YYData->{INPUT}){
-    	# Differnt Token Types
+	# Different Token Types
 
-
-
- 	# check for tokens '<>{} tokens (Whitespace OK)
+	# check for tokens '<>{} tokens (Whitespace OK)
 	if( s/^\s*([\<\>\{])//){  # <, > and { with whitespace before
 		return($1, $1);
 	}
@@ -733,23 +708,16 @@ sub Lexer {
 		return($1, $1);
 	}
 
-
 	# T_string
 	s/^(.*?)((?<!\\)[\>\{\|\}])/$2/s  # strings with embedded special characters (not backslashed)
-        	and return('T_string',$1);
+	and return('T_string',$1);
 
 	# End of string, return everything
 	s/(.+)//s
 		and return ('T_string', $1);
 
-
-	# Other stuff
-        s/^(.)//s
-                and return($1,$1);
-
 	return('','');
-
   }
- }
+}
 
 1;
