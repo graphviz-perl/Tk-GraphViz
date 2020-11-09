@@ -1075,9 +1075,7 @@ sub _createRecordNode
   my $tags = $attrs{tags};
 
   # Get Rectangle Coords
-  my $rects = $attrs{rects};
-  my @rects = split(' ', $rects);
-  my @rectsCoords = map [ split(',',$_) ], @rects;
+  my @rectsCoords = map [ split ',', $_ ], split ' ', $attrs{rects};
 
   # Setup to parse the label (Label parser object created using Parse::Yapp)
   my $parser = Tk::GraphViz::parseRecordLabel->new();
@@ -1956,58 +1954,38 @@ sub zoomToRect
 sub createText
 {
   my ($self, $x, $y, %attrs) = @_;
-
   if( defined($attrs{-text}) ) {
-
-    # Set Justification, based on any \n \l \r in the text label
-    my $label = $attrs{-text};
-    my $justify = 'center';
-
-    # Per the dotguide.pdf, a '\l', '\r', or '\n' is
-    #  just a line terminator, not a newline. So in cases
-    #   where the label ends in one of these characters, we are
-    #   going to remove the newline char later
-    my $removeNewline;
-    if( $label =~ /\\[nlr]$/){
-      $removeNewline = 1;
-    }
-
-    if( $label =~ s/\\l/\n/g ){
-      $justify = 'left';
-    }
-    if( $label =~ s/\\r/\n/g ){
-      $justify = 'right';
-    }
-
-    # Change \n to actual \n
-    if( $label =~ s/\\n/\n/g ){
-      $justify  = 'center';
-    }
-
-    # remove ending newline if flag set
-    if( $removeNewline){
-      $label =~ s/\n$//;
-    }
-
-    # Fix  any escaped chars
-    #   like \\{ to \{, and \} to }
-    $label =~ s/\\(?!\\)(.)/$1/g;
-
-    $attrs{-text} = $label;
-    $attrs{-justify} = $justify;
-
+    %attrs = (%attrs, _label2attrs($attrs{-text}));
     # Fix the label tag, if there is one
-    my $tags;
-    if( defined($tags = $attrs{-tags})){
+    if( defined(my $tags = $attrs{-tags})){
       my %tags = (@$tags);
-      $tags{label} = $label if(defined($tags{label}));
+      $tags{label} = $attrs{-text} if defined $tags{label};
       $attrs{-tags} = [%tags];
     }
     $attrs{-font} = $self->_defaultFont unless defined $attrs{-font};
   }
-
   # Call Inherited createText
   $self->SUPER::createText ( $x, $y, %attrs );
+}
+
+my %JUSTIFY = (l => 'left', n => 'center', r => 'right');
+sub _label2attrs {
+  my ($label) = @_;
+  return if !defined $label;
+  my %attrs;
+  my $justify = 'center';
+  $label =~ s/\\(.)/
+    if (my $j = $JUSTIFY{$1}) {
+      $justify = $j;
+      "\n";
+    } else {
+      $1
+    }
+  /ge;
+  $label =~ s/\n$//;
+  $attrs{-text} = $label;
+  $attrs{-justify} = $justify;
+  %attrs;
 }
 
 sub _defaultFont {

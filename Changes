@@ -1,3 +1,5 @@
+- fix handling of \-quoting in labels
+
 1.04 2020-11-08
 - tests only run when can do display stuff, avoiding false negatives
 - no install if no DOT
