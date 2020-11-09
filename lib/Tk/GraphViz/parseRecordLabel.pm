@@ -610,10 +610,10 @@ sub new {
 sub
 #line 14 "parseRecordLabel.yp"
 {
-					shift;	
+					shift;
 					my ($arg1, $arg2) = @_;
 					my (@arg1, @arg2);
-					
+
 					# flatten any args
 					if( ref($arg1) eq 'ARRAY' ){
 						@arg1 = @$arg1;
@@ -627,7 +627,7 @@ sub
 					elsif(defined($arg2)){
 						@arg2 = ($arg2);
 					}
-					
+
 					return [ @arg1, @arg2 ];
 				}
 	],
@@ -688,7 +688,7 @@ sub Error {
     my($expected)=$parse->YYExpect;
 
     my $input = $parse->YYData->{INPUT};
-    
+
     # Get rid of all but the first line
     ($input) = split("\n",$input);
 
@@ -711,15 +711,15 @@ sub Lexer {
     if( $parser->YYData->{INPUT} eq '' && @expect == 1 && $expect[0] eq 'T_string'){
     	return('T_string','');
     }
-    
+
     defined($parser->YYData->{INPUT})
-    or  return('',undef);    
+    or  return('',undef);
 
 
-	
+
     for( $parser->YYData->{INPUT}){
     	# Differnt Token Types
-	
+
 
 
  	# check for tokens '<>{} tokens (Whitespace OK)
@@ -732,23 +732,23 @@ sub Lexer {
 	if( s/^(\|)//){  # |  with no whitespace
 		return($1, $1);
 	}
-	
 
-	# T_string 
+
+	# T_string
 	s/^(.*?)((?<!\\)[\>\{\|\}])/$2/s  # strings with embedded special characters (not backslashed)
         	and return('T_string',$1);
-		
+
 	# End of string, return everything
 	s/(.+)//s
 		and return ('T_string', $1);
-		
-	
+
+
 	# Other stuff
         s/^(.)//s
                 and return($1,$1);
-		
+
 	return('','');
-		
+
   }
  }
 
