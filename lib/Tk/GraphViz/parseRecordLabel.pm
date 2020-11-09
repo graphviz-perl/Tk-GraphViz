@@ -1,6 +1,6 @@
 ####################################################################
 #
-#    This file was generated using Parse::Yapp version 1.05.
+#    This file was generated using Parse::Yapp version 1.21.
 #
 #        Don't edit this file, use source file instead.
 #
@@ -25,7 +25,8 @@ use strict;
 #
 # This notice should remain unchanged.
 #
-# (c) Copyright 1998-2001 Francois Desarmenien, all rights reserved.
+# Copyright © 1998, 1999, 2000, 2001, Francois Desarmenien.
+# Copyright © 2017 William N. Braswell, Jr.
 # (see the pod text in Parse::Yapp module for use and distribution rights)
 #
 
@@ -38,7 +39,8 @@ use strict;
 
 use vars qw ( $VERSION $COMPATIBLE $FILENAME );
 
-$VERSION = '1.05';
+# CORRELATION #py001: $VERSION must be changed in both Parse::Yapp & Parse::Yapp::Driver
+$VERSION = '1.21';
 $COMPATIBLE = '0.07';
 $FILENAME=__FILE__;
 
@@ -497,46 +499,39 @@ sub new {
         ref($class)
     and $class=ref($class);
 
-    my($self)=$class->SUPER::new( yyversion => '1.05',
+    my($self)=$class->SUPER::new( yyversion => '1.21',
                                   yystates =>
 [
 	{#State 0
 		ACTIONS => {
-			"<" => 2,
-			"{" => 3,
-			'T_string' => -9
+			'T_string' => -9,
+			"<" => 5,
+			"{" => 6
 		},
 		DEFAULT => -2,
 		GOTOS => {
-			'optName' => 1,
+			'field' => 1,
 			'rlabel' => 4,
-			'field' => 6,
-			'boxlabel' => 5
+			'boxlabel' => 3,
+			'optName' => 2
 		}
 	},
 	{#State 1
 		ACTIONS => {
-			'T_string' => 7
+			"|" => 8
+		},
+		DEFAULT => -4,
+		GOTOS => {
+			'optMoreFields' => 7
 		}
 	},
 	{#State 2
 		ACTIONS => {
-			'T_string' => 8
+			'T_string' => 9
 		}
 	},
 	{#State 3
-		ACTIONS => {
-			"<" => 2,
-			"{" => 3,
-			'T_string' => -9
-		},
-		DEFAULT => -2,
-		GOTOS => {
-			'optName' => 1,
-			'rlabel' => 9,
-			'field' => 6,
-			'boxlabel' => 5
-		}
+		DEFAULT => -5
 	},
 	{#State 4
 		ACTIONS => {
@@ -544,58 +539,65 @@ sub new {
 		}
 	},
 	{#State 5
-		DEFAULT => -5
+		ACTIONS => {
+			'T_string' => 11
+		}
 	},
 	{#State 6
 		ACTIONS => {
-			"|" => 11
+			'T_string' => -9,
+			"<" => 5,
+			"{" => 6
 		},
-		DEFAULT => -4,
+		DEFAULT => -2,
 		GOTOS => {
-			'optMoreFields' => 12
+			'field' => 1,
+			'rlabel' => 12,
+			'boxlabel' => 3,
+			'optName' => 2
 		}
 	},
 	{#State 7
-		DEFAULT => -7
+		DEFAULT => -1
 	},
 	{#State 8
 		ACTIONS => {
-			">" => 13
+			'T_string' => -9,
+			"<" => 5,
+			"{" => 6
+		},
+		DEFAULT => -2,
+		GOTOS => {
+			'field' => 1,
+			'rlabel' => 13,
+			'boxlabel' => 3,
+			'optName' => 2
 		}
 	},
 	{#State 9
-		ACTIONS => {
-			"}" => 14
-		}
+		DEFAULT => -7
 	},
 	{#State 10
 		DEFAULT => 0
 	},
 	{#State 11
 		ACTIONS => {
-			"<" => 2,
-			"{" => 3,
-			'T_string' => -9
-		},
-		DEFAULT => -2,
-		GOTOS => {
-			'optName' => 1,
-			'rlabel' => 15,
-			'field' => 6,
-			'boxlabel' => 5
+			">" => 14
 		}
 	},
 	{#State 12
-		DEFAULT => -1
+		ACTIONS => {
+			"}" => 15
+		}
 	},
 	{#State 13
-		DEFAULT => -8
+		DEFAULT => -3
 	},
 	{#State 14
-		DEFAULT => -6
+		DEFAULT => -8
 	},
 	{#State 15
-		DEFAULT => -3
+		DEFAULT => -6
 	}
 ],
                                   yyrules  =>

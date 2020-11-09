@@ -1,11 +1,11 @@
-#
-# parseRecordLabel.yp
-# 
-#
-# 
 # Parse::Yapp grammar file. Used to create parser for the record node
 #   labels
 #
+# regen with:
+#
+# PERL_HASH_SEED=0 yapp -s -m Tk::GraphViz::parseRecordLabel -o lib/Tk/GraphViz/parseRecordLabel.pm parseRecordLabel.yp; perl -pi -e 's/package P/package # hide from PAUSE\n  P/' lib/Tk/GraphViz/parseRecordLabel.pm
+#
+
 %token		<i>	T_string 
 %left '{'
 %%
