@@ -852,7 +852,7 @@ sub _createNode
 
   my $orient = $attrs{orientation} || 0.0;
   if ( $shape eq 'record' ) {
-    $self->_createRecordNode ( $label, %attrs, tags => $tags );
+    $self->_createRecordNode ( $label, \@args, %attrs, tags => $tags );
   } else {
     $self->_createShapeNode ( $shape, $x1, -1*$y2, $x2, -1*$y1,
 			      $orient, @args, -tags => $tags );
@@ -1062,7 +1062,7 @@ sub _createPolyShape
 my $TEXT_MARGIN = 3; # arbitrarily chosen
 sub _createRecordNode
 {
-  my ($self, $label, %attrs) = @_;
+  my ($self, $label, $shape_args, %attrs) = @_;
 
   my $tags = $attrs{tags};
 
@@ -1102,7 +1102,7 @@ sub _createRecordNode
     $portTags{label} = $text;
 
     my ($x1,$y1,$x2,$y2) = @$rectCoords;
-    $self->createRectangle ( $x1, -$y1, $x2, -$y2, -tags => [%portTags] );
+    $self->createRectangle ( $x1, -$y1, $x2, -$y2, @$shape_args, -tags => [%portTags] );
     my ($y_anchor, $anchor_arg, $x_anchor) = (-($y1 + $y2)/2);
     my %label_attrs = _label2attrs($text);
     if ($label_attrs{-justify} eq 'left') {
