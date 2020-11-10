@@ -851,17 +851,12 @@ sub _createNode
   push @args, -fill => $fill if ( defined($fill) );
 
   my $orient = $attrs{orientation} || 0.0;
-
-  # Node label
-  $label =~ s/\\n/\n/g;
-
-  unless ( $shape eq 'record' ) {
-    # Normal non-record node types
+  if ( $shape eq 'record' ) {
+    $self->_createRecordNode ( $label, %attrs, tags => $tags );
+  } else {
     $self->_createShapeNode ( $shape, $x1, -1*$y2, $x2, -1*$y1,
 			      $orient, @args, -tags => $tags );
-
     $label = undef if ( $shape eq 'point' );
-
     # Node label
     if ( defined $label ) {
       $tags->[0] = 'nodelabel'; # Replace 'node' w/ 'nodelabel'
@@ -871,10 +866,6 @@ sub _createNode
       push @args, ( -state => 'disabled' );
       $self->createText ( @args );
     }
-  }
-  else {
-    # Record node types
-    $self->_createRecordNode ( $label, %attrs, tags => $tags );
   }
 
   # Return the bounding box of the node
@@ -1964,7 +1955,6 @@ sub createText
     }
     $attrs{-font} = $self->_defaultFont unless defined $attrs{-font};
   }
-  # Call Inherited createText
   $self->SUPER::createText ( $x, $y, %attrs );
 }
 
