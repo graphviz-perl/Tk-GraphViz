@@ -1059,6 +1059,7 @@ sub _createPolyShape
 ######################################################################
 # Draw the node record shapes
 ######################################################################
+my $TEXT_MARGIN = 3; # arbitrarily chosen
 sub _createRecordNode
 {
   my ($self, $label, %attrs) = @_;
@@ -1102,12 +1103,23 @@ sub _createRecordNode
 
     my ($x1,$y1,$x2,$y2) = @$rectCoords;
     $self->createRectangle ( $x1, -$y1, $x2, -$y2, -tags => [%portTags] );
-
-    # Find midpoint for label anchor point
-    my $midX = ($x1 + $x2)/2;
-    my $midY = ($y1 + $y2)/2;
+    my ($y_anchor, $anchor_arg, $x_anchor) = (-($y1 + $y2)/2);
+    my %label_attrs = _label2attrs($text);
+    if ($label_attrs{-justify} eq 'left') {
+      $x_anchor = $x1 + $TEXT_MARGIN;
+      $anchor_arg = 'w';
+    } elsif ($label_attrs{-justify} eq 'right') {
+      $x_anchor = $x2 - $TEXT_MARGIN;
+      $anchor_arg = 'e';
+    } else {
+      $x_anchor = ($x1 + $x2)/2;
+      $anchor_arg = 'center';
+    }
     $portTags{nodelabel} = delete $portTags{node}; # Replace 'node' w/ 'nodelabel'
-    $self->createText ( $midX, -$midY, -text => $text, -tags => [%portTags]);
+    $self->createText(
+      $x_anchor, $y_anchor, -anchor => $anchor_arg,
+      -text => $text, -tags => [%portTags],
+    );
 
     $portIndex++;
   }
