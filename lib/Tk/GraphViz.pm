@@ -864,6 +864,7 @@ sub _createNode
 		-anchor => 'center', -justify => 'center',
 		-tags => $tags, -fill => $fontcolor );
       push @args, ( -state => 'disabled' );
+      push @args, -font => $self->_getFont(@attrs{qw(fontname fontsize)});
       $self->createText ( @args );
     }
   }
@@ -1119,6 +1120,7 @@ sub _createRecordNode
     $self->createText(
       $x_anchor, $y_anchor, -anchor => $anchor_arg,
       -text => $text, -tags => [%portTags],
+      -font => $self->_getFont(@attrs{qw(fontname fontsize)}),
     );
 
     $portIndex++;
@@ -2003,6 +2005,20 @@ sub _defaultFont {
   # Delete the dummy item
   $self->delete($dummyID);
   $fonts->{_default}{font};
+}
+
+my $FONTSCALE = 0.7; # arbitrary
+sub _getFont {
+  my ($self, $family, $size) = @_;
+  return $self->_defaultFont unless defined $family;
+  my $fonts = $self->{fonts};
+  my $key = join '-', grep defined, $family, $size;
+  return $fonts->{$key}{font} if defined $fonts->{$key}{font};
+  my @args = (-family => $family);
+  push @args, -size => $size * $FONTSCALE if defined $size;
+  my $font = $self->Font(@args)->Clone;
+  $fonts->{$key}{origSize} = $font->actual(-size);
+  return $fonts->{$key}{font} = $font;
 }
 
 ######################################################################
