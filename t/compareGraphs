@@ -77,8 +77,8 @@ $statusLabel->pack(-side => 'left');
 
 $buttonFrame->pack(-side => 'bottom' );
 
-$buttonFrame->Button(-text => 'Quit', -command => [$mw, 'destroy'])->pack(-side => 'right');
-my $nextButton = $buttonFrame->Button(-text => 'Next', -state => 'disabled');
+$buttonFrame->Button(-text => 'Quit', -command => [$mw, 'destroy'], -underline => 0)->pack(-side => 'right');
+my $nextButton = $buttonFrame->Button(-text => 'Next', -state => 'disabled', -underline => 0);
 
 $nextButton->configure( -command =>
 	sub{
@@ -105,6 +105,8 @@ $nextButton->configure( -command =>
 );
 
 $nextButton->pack(-side => 'left');
+$mw->bind('<Key-n>' => \&showDots);
+$mw->bind('<Key-q>' => [$mw, 'destroy']);
 
 if( @dots){ # enable next button if there are more files to look at
 	$nextButton->configure(-state => 'normal');
