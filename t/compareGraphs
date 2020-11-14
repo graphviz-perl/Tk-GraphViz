@@ -67,7 +67,6 @@ my $gv = $rightFrame->Scrolled ( 'GraphViz',
   ->pack ( -expand => '1', -fill => 'both', -side => 'right' );
 
 $gv->createBindings();
-$gv->show($currentFile, async => $async);
 
 my $buttonFrame = $mw->Frame();
 
@@ -112,6 +111,7 @@ if( @dots){ # enable next button if there are more files to look at
 }
 
 $mw->geometry( "800x400");
+$gv->show($currentFile, async => $async);
 
 MainLoop;
 

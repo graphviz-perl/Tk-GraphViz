@@ -8,6 +8,7 @@ our $VERSION = '1.04';
 
 use Tk 800.020;
 use Tk::Font;
+use Tk::IO;
 
 # Parse::Yapp-generated Parser for parsing record node labels
 use Tk::GraphViz::parseRecordLabel;
@@ -16,7 +17,6 @@ use base qw(Tk::Derived Tk::Canvas);
 
 use IO qw(Handle File Pipe);
 use Carp;
-use Reaper qw( reapPid pidStatus );
 
 use IPC::Open3;
 use POSIX qw( :sys_wait_h :errno_h );
@@ -94,123 +94,9 @@ sub show
 sub _startGraphLayout
 {
   my ($self, $graph, %opt) = @_;
-
   my ($filename,$delete_file) = $self->_createDotFile ( $graph, %opt );
-
-  # If a previous layout process is running, it needs to be killed
-  $self->_stopGraphLayout( %opt );
-
   $self->{layout} = [];
-
-  if ( ($self->{layout_process} =
-	$self->_startDot ( $filename, delete_file => $delete_file,
-			   %opt )) ) {
-    $self->{layout_process}{filename} = $filename;
-    $self->{layout_process}{delete_file} = $delete_file;
-    $self->{layout_process}{opt} = \%opt;
-    $self->_checkGraphLayout ();
-  } else {
-    $self->_showGraphLayout( %opt );
-  }
-}
-
-
-######################################################################
-# Stop a layout task running in the background.
-# It is important to do a waitpid() on all the background processes
-# to prevent them from becoming orphans/zombies
-######################################################################{
-sub _stopGraphLayout
-{
-  my ($self, %opt) = @_;
-
-  my $proc = $self->{layout_process};
-  return 0 unless defined $proc;
-
-  if ( defined $proc->{pid} ) {
-    my @sig = qw( TERM TERM TERM TERM KILL );
-    for ( my $i = 0; $i < 5; ++$i ) {
-      last unless defined $proc->{pid};
-      kill $sig[$i], $proc->{pid};
-      if ( $self->_checkGraphLayout( noafter => 1 ) ) {
-	sleep $i+1;
-      }
-    }
-  }
-
-  unlink $proc->{filename} if ( $proc->{delete_file} );
-  delete $self->{layout_process};
-}
-
-
-######################################################################
-# Check whether the background layout task has finished
-# Also reads any available output the command has generated to
-# this point.
-# If the command is not finished, schedules for this method to be
-# called again in the future, after some period.
-######################################################################
-sub _checkGraphLayout
-{
-  my ($self, %opt) = @_;
-
-  my $proc = $self->{layout_process};
-  if ( !defined $proc ) { return 0; }
-
-  if ( !defined $proc->{pid} ) { return 0; }
-
-  my $finished = 0;
-  if ( defined(my $stat = pidStatus($proc->{pid})) ) {
-    # Process has exited
-    if ( $stat == 0xff00 ) {
-      $proc->{error} = "exec failed";
-    }
-    elsif ( $stat > 0x80 ) {
-      $stat >>= 8;
-    }
-    else {
-      if ( $stat & 0x80 ) {
-	$stat &= ~0x80;
-	$proc->{error} = "Killed by signal $stat (coredump)";
-      } else {
-	$proc->{error} = "Kill by signal $stat";
-      }
-    }
-    $proc->{status} = $stat;
-    $finished = 1;
-  }
-
-  else {
-    my $kill = kill ( 0 => $proc->{pid} );
-    if ( !$kill ) {
-      $proc->{status} = 127;
-      $proc->{error} = "pid $proc->{pid} gone, but no status!";
-      $finished = 1;
-    }
-  }
-
-  # Read available output...
-  while ( $self->_readGraphLayout () ) { last if !$finished; }
-
-  # When finished, show the new contents
-  if ( $finished ) {
-    $proc->{pid} = undef;
-    $self->_stopGraphLayout();
-
-    $self->_showGraphLayout ( %{$proc->{opt}} );
-    return 0;
-  }
-
-  else {
-    # Not yet finished, so schedule to check again soon
-    if ( !defined($opt{noafter}) || !$opt{noafter} ) {
-      my $checkDelay = 500;
-      if ( defined($proc->{goodread}) ) { $checkDelay = 0; }
-      $self->after ( $checkDelay, sub { $self->_checkGraphLayout(%opt); } );
-    }
-
-    return 1;
-  }
+  $self->_startDot ( $filename, delete_file => $delete_file, %opt );
 }
 
 
@@ -359,49 +245,42 @@ sub _startDot
 
   my @layout_cmd = $self->_makeLayoutCommand ( $filename, %opt );
 
+  my $delete_file = delete $opt{delete_file};
+  my $then = sub {
+    unlink $filename if $delete_file;
+    $self->_showGraphLayout( %opt );
+  };
   # Simple, non-asynchronous mode: execute the
   # process synchnronously and wait for all its output
   if ( !defined($opt{async}) || !$opt{async} ) {
     my $pipe = IO::Pipe->new;
     $pipe->reader ( @layout_cmd );
     while ( <$pipe> ) { push @{$self->{layout}}, $_; }
-    if ( $opt{delete_file} ) {
-      unlink $filename;
-    }
-    return undef;
+    $then->();
   }
 
-  # Now execute it
-  my $in = IO::Handle->new;
-  my $out = IO::Handle->new;
-  $in->autoflush;
-
-  local $@ = undef;
-  my $proc = {};
-  my $ppid = $$;
-  eval {
-    $proc->{pid} = open3 ( $in, $out, '>&STDERR', @layout_cmd );
-    reapPid ( $proc->{pid} );
-
-    # Fork failure?
-    exit(127) if ( $$ != $ppid );
-  };
-  if ( defined($@) && $@ ne '' ) {
-    $self->{error} = $@;
-  }
-
-  # Close stdin so child process sees eof on its input
-  $in->close;
-
-  $proc->{output} = $out;
-  $proc->{buf} = '';
-  $proc->{buflen} = 0;
-  $proc->{eof} = 0;
-
-  # Enable non-blocking reads on the output
-  $self->_disableBlocking ( $out );
-
-  return $proc;
+  my $fh  = Tk::IO->new(
+    -linecommand  => sub {
+      push @{$self->{layout}}, @_;
+    },
+    -childcommand => sub {
+      my ($stat) = @_;
+      my ($error, $status); # not used but captured in case
+      if ( $stat == 0xff00 ) {
+        $error = "exec failed";
+      } elsif ( $stat > 0x80 ) {
+        $stat >>= 8;
+      } elsif ( $stat & 0x80 ) {
+        $stat &= ~0x80;
+        $error = "Killed by signal $stat (coredump)";
+      } else {
+        $error = "Kill by signal $stat";
+      }
+      $status = $stat;
+      $then->();
+    },
+  );
+  $fh->exec(@layout_cmd);
 }
 
 
@@ -471,69 +350,6 @@ sub _makeLayoutCommand
   }
 
   return ($layout_cmd, @opts, '-Tdot', $filename);
-}
-
-
-######################################################################
-# Read data from the background layout process, in a non-blocking
-# mode.  Reads all the data currently available, up to some reasonable
-# buffer size.
-######################################################################
-sub _readGraphLayout
-{
-  my ($self) = @_;
-
-  my $proc = $self->{layout_process};
-  if ( !defined $proc ) { return; }
-
-  delete $proc->{goodread};
-  my $rv = sysread ( $proc->{output}, $proc->{buf}, 10240,
-		     $proc->{buflen} );
-  if ( !defined($rv) && $! == EAGAIN ) {
-    # Would block, don't do anything right now
-    return 0;
-  }
-
-  elsif ( $rv == 0 ) {
-    # 0 bytes read -- EOF
-    $proc->{eof} = 1;
-    return 0;
-  }
-
-  else {
-    $proc->{buflen} += $rv;
-    $proc->{goodread} = 1;
-
-    # Go ahead and split the output that's available now,
-    # so that this part at least is potentially spread out in time
-    # while the background process keeps running.
-    $self->_splitGraphLayout ();
-
-    return $rv;
-  }
-}
-
-
-######################################################################
-# Split the buffered data read from the background layout task
-# into individual lines
-######################################################################
-sub _splitGraphLayout
-{
-  my ($self) = @_;
-
-  my $proc = $self->{layout_process};
-  if ( !defined $proc ) { return; }
-
-  my @lines = split ( /\n/, $proc->{buf} );
-  
-  # If not at eof, keep the last line in the buffer
-  if ( !$proc->{eof} ) {
-    $proc->{buf} = pop @lines;
-    $proc->{buflen} = length($proc->{buf});
-  }
-
-  push @{$self->{layout}}, @lines;
 }
 
 
