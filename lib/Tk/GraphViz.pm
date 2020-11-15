@@ -830,6 +830,18 @@ sub _createPolyShape
   $self->createPolygon ( @pts, %args );
 }
 
+sub _parse {
+  my ($label, $debug) = @_;
+  # Setup to parse the label (Label parser object created using Parse::Yapp)
+  my $parser = Tk::GraphViz::parseRecordLabel->new;
+  $parser->YYData->{INPUT} = $label;
+  # And parse it...
+  $parser->YYParse(
+    yylex => \&Tk::GraphViz::parseRecordLabel::Lexer,
+    yyerror => \&Tk::GraphViz::parseRecordLabel::Error,
+    yydebug => ($debug && 0x1F),
+  ) or die __PACKAGE__.": Error Parsing Record Node Label '$label'\n";
+}
 
 ######################################################################
 # Draw the node record shapes
@@ -844,19 +856,7 @@ sub _createRecordNode
   # Get Rectangle Coords
   my @rectsCoords = map [ split ',', $_ ], split ' ', $attrs{rects};
 
-  # Setup to parse the label (Label parser object created using Parse::Yapp)
-  my $parser = Tk::GraphViz::parseRecordLabel->new();
-  $parser->YYData->{INPUT} = $label;
-
-  # And parse it...
-  my $structure = $parser->YYParse
-    ( yylex => \&Tk::GraphViz::parseRecordLabel::Lexer,
-      yyerror => \&Tk::GraphViz::parseRecordLabel::Error,
-      yydebug => 0 );
-  die __PACKAGE__.": Error Parsing Record Node Label '$label'\n"
-    unless $structure;
-
-  my @labels = @$structure;
+  my @labels = @{ _parse($label) };
 
   # Draw the rectangles
   my $portIndex = 1;  # Ports numbered from 1. This is used for the port name
