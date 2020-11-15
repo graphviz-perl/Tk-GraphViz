@@ -388,35 +388,37 @@ sub _parseLayout
       next;
     }
 
+    s/^\s+//;
+
     #STDERR->print ( "gv _parse: '$_'\n" );
 
-    if ( /^\s*(?:di)?graph\s*.*\{\s*$/ ) {
+    if ( /^(?:di)?graph\s*.*\{\s*$/ ) {
       # starting line, ignore
       next;
     }
 
-    if ( /^\s*\]\s*;\s*$/ ) {
+    if ( /^\]\s*;\s*$/ ) {
       # end of attributes not finishing on same line as important info, ignore
       next;
     }
 
-    if ( /^\s+node\s*\[(.+)(?:\];)?/ ) {
+    if ( /^node\s*\[(.+)(?:\];)?/ ) {
       %allNodeAttrs = (%allNodeAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
-    if ( /^\s+edge\s*\[(.+)(?:\];)?/ ) {
+    if ( /^edge\s*\[(.+)(?:\];)?/ ) {
       %allEdgeAttrs = (%allEdgeAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
-    if ( /^\s+graph\s*\[(.+)(?:\];)?/ ) {
+    if ( /^graph\s*\[(.+)(?:\];)?/ ) {
       %graphAttrs = (%graphAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
-    if ( /^\s+subgraph\s*.*\s*\{/ ||
-         /^\s+\{/ ) {
+    if ( /^subgraph\s*.*\s*\{/ ||
+         /^\{/ ) {
       push @saveStack, [ {%graphAttrs},
 			 {%allNodeAttrs},
 			 {%allEdgeAttrs} ];
@@ -425,7 +427,7 @@ sub _parseLayout
       next;
     }
 
-    if ( /^\s*\}/ ) {
+    if ( /^\}/ ) {
       # End of a graph section
       if ( @saveStack ) {
 	# Subgraph
@@ -462,7 +464,7 @@ sub _parseLayout
       }
     }
 
-    if ( /\s*(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
+    if ( /(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
       # Edge
       my ($n1,$n2,$attrs) = ($1,$2,$3);
       my %edgeAttrs = (%allEdgeAttrs, %{ _parseAttrs($attrs) });
@@ -472,7 +474,7 @@ sub _parseLayout
       $minY = min($minY,$y1);
       $maxX = max($maxX,$x2);
       $maxY = max($maxY,$y2);
-    } elsif ( /\s+(.+?)\s*(?:\[(.+)\];)?\s*$/ ) {
+    } elsif ( /(.+?)\s*(?:\[(.+)\];)?\s*$/ ) {
       # Node
       my ($name,$attrs) = ($1,$2);
 
@@ -490,9 +492,7 @@ sub _parseLayout
     } else {
       warn "Failed to parse DOT line: '$_'";
     }
-
   }
-
 }
 
 
