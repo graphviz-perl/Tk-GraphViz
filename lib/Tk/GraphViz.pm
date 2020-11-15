@@ -578,8 +578,12 @@ sub _createNode
   my $y2 = $y + $h/2.0;
 
   my $label = $attrs{label};
-  $label = $attrs{label} = $name unless defined $label;
-  if ( $label eq '\N' ) { $label = $attrs{label} = $name; }
+  if (defined $label) {
+    $label =~ s/\\(.)/ $1 eq 'N' ? $name : "\\$1" /ge;
+  } else {
+    $label = $name;
+  }
+  $attrs{label} = $label;
 
   #STDERR->printf ( "createNode: $name \"$label\" ($x1,$y1) ($x2,$y2)\n" );
 
