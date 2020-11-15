@@ -1,6 +1,6 @@
 digraph G {
 	node [label="\N"];
-	xyz [label="hello\nworld", color=slate_blue, fontsize=24, fontname="Palatino-Italic", style=filled, fontcolor="hot pink"];
+	xyz [label="hello\nworld", color=slateblue, fontsize=24, fontname="Palatino-Italic", style=filled, fontcolor="hotpink"];
 	red [color=red, style=filled];
 	green [color=green, style=filled];
 	blue [color=blue, style=filled, fontcolor=black];

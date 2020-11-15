@@ -2,7 +2,7 @@ digraph G {
 	node [label="\N"];
 	subgraph cluster_0 {
 		graph [label="hello world"];
-		graph [color=hot_pink];
+		graph [color=hotpink];
 		a
 		b
 		c
@@ -22,7 +22,6 @@ digraph G {
 		y -> z
 		y -> q
 	}
-	top
 	top -> a
 	top -> y
 	y -> b
