@@ -363,11 +363,9 @@ sub _parseLayout
   my ($self, $layoutLines, %opt) = @_;
 
   my $directed = 1;
-  my %allNodeAttrs = ();
-  my %allEdgeAttrs = ();
-  my %graphAttrs = ();
+  my $context = { node => {}, edge => {}, graph => {} };
   my ($minX, $minY, $maxX, $maxY) = ( undef, undef, undef, undef );
-  my @saveStack = ();
+  my @saveStack;
 
   my $accum = undef;
 
@@ -403,27 +401,26 @@ sub _parseLayout
     }
 
     if ( /^node\s*\[(.+)(?:\];)?/ ) {
-      %allNodeAttrs = (%allNodeAttrs, %{ _parseAttrs("$1") });
+      %{ $context->{node} } = (%{ $context->{node} }, %{ _parseAttrs("$1") });
       next;
     }
 
     if ( /^edge\s*\[(.+)(?:\];)?/ ) {
-      %allEdgeAttrs = (%allEdgeAttrs, %{ _parseAttrs("$1") });
+      %{ $context->{edge} } = (%{ $context->{edge} }, %{ _parseAttrs("$1") });
       next;
     }
 
     if ( /^graph\s*\[(.+)(?:\];)?/ ) {
-      %graphAttrs = (%graphAttrs, %{ _parseAttrs("$1") });
+      %{ $context->{graph} } = (%{ $context->{graph} }, %{ _parseAttrs("$1") });
       next;
     }
 
     if ( /^subgraph\s*.*\s*\{/ ||
          /^\{/ ) {
-      push @saveStack, [ {%graphAttrs},
-			 {%allNodeAttrs},
-			 {%allEdgeAttrs} ];
-      delete $graphAttrs{label};
-      delete $graphAttrs{bb};
+      push @saveStack, $context;
+      $context = { map +($_ => {%{ $context->{$_} }}), keys %$context };
+      delete $context->{graph}{label};
+      delete $context->{graph}{bb};
       next;
     }
 
@@ -431,34 +428,31 @@ sub _parseLayout
       # End of a graph section
       if ( @saveStack ) {
 	# Subgraph
-	if ( defined($graphAttrs{bb}) && $graphAttrs{bb} ne '' ) {
-	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
+	if ( defined($context->{graph}{bb}) && $context->{graph}{bb} ne '' ) {
+	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $context->{graph}{bb} );
 	  $minX = min($minX,$x1);
 	  $minY = min($minY,$y1);
 	  $maxX = max($maxX,$x2);
 	  $maxY = max($maxY,$y2);
-	  $self->_createSubgraph ( $x1, $y1, $x2, $y2, %graphAttrs );
+	  $self->_createSubgraph($x1, $y1, $x2, $y2, %{ $context->{graph} });
 	}
 
-	my ($g,$n,$e) = @{pop @saveStack};
-	%graphAttrs = %$g;
-	%allNodeAttrs = %$n;
-	%allEdgeAttrs = %$e;
+	$context = pop @saveStack;
 	next;
       } else {
 	# End of the graph
 	# Create any whole-graph label
-	if ( defined($graphAttrs{bb}) ) {
-	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $graphAttrs{bb} );
+	if ( defined($context->{graph}{bb}) ) {
+	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $context->{graph}{bb} );
 	  $minX = min($minX,$x1);
 	  $minY = min($minY,$y1);
 	  $maxX = max($maxX,$x2);
 	  $maxY = max($maxY,$y2);
 
 	  # delete bb attribute so rectangle is not drawn around whole graph
-	  delete  $graphAttrs{bb};
+	  delete $context->{graph}{bb};
 
-	  $self->_createSubgraph ( $x1, $y1, $x2, $y2, %graphAttrs );
+	  $self->_createSubgraph ($x1, $y1, $x2, $y2, %{ $context->{graph} });
 	}
 	last;
       }
@@ -467,7 +461,7 @@ sub _parseLayout
     if ( /(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
       # Edge
       my ($n1,$n2,$attrs) = ($1,$2,$3);
-      my %edgeAttrs = (%allEdgeAttrs, %{ _parseAttrs($attrs) });
+      my %edgeAttrs = (%{ $context->{edge} }, %{ _parseAttrs($attrs) });
 
       my ($x1,$y1,$x2,$y2) = $self->_createEdge ( $n1, $n2, %edgeAttrs );
       $minX = min($minX,$x1);
@@ -482,7 +476,7 @@ sub _parseLayout
       $name =~ s/^\"//;
       $name =~ s/\"$//;
 
-      my %nodeAttrs = (%allNodeAttrs, %{ _parseAttrs($attrs) });
+      my %nodeAttrs = (%{ $context->{node} }, %{ _parseAttrs($attrs) });
 
       my ($x1,$y1,$x2,$y2) = $self->_createNode ( $name, %nodeAttrs );
       $minX = min($minX,$x1);
