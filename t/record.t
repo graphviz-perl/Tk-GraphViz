@@ -8,16 +8,20 @@ my @DATA = (
   [
     '{<port1> echo\ $\{hallo\}\ perl\\lib\ double\\\\l \| wc -l\l|true\l}',
     [
-      { 'port1' => 'echo\\ $\\{hallo\\}\\ perl\\lib\\ double\\\\l \\| wc -l\\l' },
-      { '' => 'true\\l' }
+      [
+        { 'port1' => 'echo\\ $\\{hallo\\}\\ perl\\lib\\ double\\\\l \\| wc -l\\l' },
+        { '' => 'true\\l' }
+      ],
     ],
   ],
   [
     '{<port1> echo\ hi\\l|wc -l\l|true\l}',
     [
-      { 'port1' => 'echo\\ hi\\l' },
-      { '' => 'wc -l\\l' },
-      { '' => 'true\\l' }
+      [
+        { 'port1' => 'echo\\ hi\\l' },
+        { '' => 'wc -l\\l' },
+        { '' => 'true\\l' }
+      ],
     ],
   ],
   [
@@ -31,6 +35,16 @@ my @DATA = (
       { 'f5' => '' },
       { 'f6' => '' },
       { '' => ' ' },
+    ],
+  ],
+  [
+    '<port1> echo|{wc -l|{true}}',
+    [
+      { 'port1' => 'echo' },
+      [
+        { '' => 'wc -l' },
+        [ { '' => 'true' } ],
+      ],
     ],
   ],
 );

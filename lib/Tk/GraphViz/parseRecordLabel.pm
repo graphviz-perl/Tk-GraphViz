@@ -505,93 +505,89 @@ sub new {
 	{#State 0
 		ACTIONS => {
 			'T_string' => 2,
-			"<" => 4,
-			"{" => 6
+			"<" => 3,
+			"{" => 5
 		},
-		DEFAULT => -8,
+		DEFAULT => -6,
 		GOTOS => {
 			'cell' => 1,
-			'field' => 3,
-			'portSpec' => 5,
-			'cellList' => 7
+			'portSpec' => 4,
+			'cellList' => 6
 		}
 	},
 	{#State 1
-		DEFAULT => -3
+		DEFAULT => -1
 	},
 	{#State 2
-		DEFAULT => -7
+		DEFAULT => -5
 	},
 	{#State 3
 		ACTIONS => {
-			'' => 8
+			'T_string' => 7
 		}
 	},
 	{#State 4
 		ACTIONS => {
-			'T_string' => 9
-		}
+			'T_string' => 8
+		},
+		DEFAULT => -4
 	},
 	{#State 5
 		ACTIONS => {
-			'T_string' => 10
+			'T_string' => 2,
+			"<" => 3,
+			"{" => 5
 		},
-		DEFAULT => -6
+		DEFAULT => -6,
+		GOTOS => {
+			'cell' => 1,
+			'portSpec' => 4,
+			'cellList' => 9
+		}
 	},
 	{#State 6
 		ACTIONS => {
-			'T_string' => 2,
-			"<" => 4
-		},
-		DEFAULT => -8,
-		GOTOS => {
-			'cell' => 1,
-			'portSpec' => 5,
-			'cellList' => 11
+			'' => 10,
+			"|" => 11
 		}
 	},
 	{#State 7
 		ACTIONS => {
-			"|" => 12
-		},
-		DEFAULT => -1
+			">" => 12
+		}
 	},
 	{#State 8
-		DEFAULT => 0
+		DEFAULT => -3
 	},
 	{#State 9
 		ACTIONS => {
-			">" => 13
+			"}" => 13,
+			"|" => 11
 		}
 	},
 	{#State 10
-		DEFAULT => -5
+		DEFAULT => 0
 	},
 	{#State 11
 		ACTIONS => {
-			"}" => 14,
-			"|" => 12
+			'T_string' => 2,
+			"<" => 3,
+			"{" => 5
+		},
+		DEFAULT => -6,
+		GOTOS => {
+			'cell' => 14,
+			'portSpec' => 4
 		}
 	},
 	{#State 12
-		ACTIONS => {
-			'T_string' => 2,
-			"<" => 4
-		},
-		DEFAULT => -8,
-		GOTOS => {
-			'cell' => 15,
-			'portSpec' => 5
-		}
+		DEFAULT => -8
 	},
 	{#State 13
-		DEFAULT => -9
+		DEFAULT => -7
 	},
 	{#State 14
 		DEFAULT => -2
-	},
-	{#State 15
-		DEFAULT => -4
 	}
 ],
                                   yyrules  =>
@@ -600,57 +596,51 @@ sub new {
 		 '$start', 2, undef
 	],
 	[#Rule 1
-		 'field', 1,
-sub
-#line 11 "parseRecordLabel.yp"
-{ $_[1] }
-	],
-	[#Rule 2
-		 'field', 3,
-sub
-#line 12 "parseRecordLabel.yp"
-{ $_[2] }
-	],
-	[#Rule 3
 		 'cellList', 1,
 sub
-#line 15 "parseRecordLabel.yp"
+#line 11 "parseRecordLabel.yp"
 { [ $_[1] ] }
 	],
-	[#Rule 4
+	[#Rule 2
 		 'cellList', 3,
 sub
-#line 16 "parseRecordLabel.yp"
+#line 12 "parseRecordLabel.yp"
 { [ @{ $_[1] }, $_[3] ] }
 	],
-	[#Rule 5
+	[#Rule 3
 		 'cell', 2,
 sub
-#line 19 "parseRecordLabel.yp"
+#line 15 "parseRecordLabel.yp"
 { +{ $_[1], $_[2] } }
 	],
-	[#Rule 6
+	[#Rule 4
 		 'cell', 1,
 sub
-#line 20 "parseRecordLabel.yp"
+#line 16 "parseRecordLabel.yp"
 { +{ $_[1], '' } }
 	],
-	[#Rule 7
+	[#Rule 5
 		 'cell', 1,
 sub
-#line 21 "parseRecordLabel.yp"
+#line 17 "parseRecordLabel.yp"
 { +{ '', $_[1] } }
 	],
-	[#Rule 8
+	[#Rule 6
 		 'cell', 0,
 sub
-#line 22 "parseRecordLabel.yp"
+#line 18 "parseRecordLabel.yp"
 { +{ '', '' } }
 	],
-	[#Rule 9
+	[#Rule 7
+		 'cell', 3,
+sub
+#line 19 "parseRecordLabel.yp"
+{ $_[2] }
+	],
+	[#Rule 8
 		 'portSpec', 3,
 sub
-#line 25 "parseRecordLabel.yp"
+#line 22 "parseRecordLabel.yp"
 { $_[2] }
 	]
 ],
@@ -658,7 +648,7 @@ sub
     bless($self,$class);
 }
 
-#line 28 "parseRecordLabel.yp"
+#line 25 "parseRecordLabel.yp"
 
 
 sub Error {

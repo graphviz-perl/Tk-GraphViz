@@ -843,6 +843,13 @@ sub _parse {
   ) or die __PACKAGE__.": Error Parsing Record Node Label '$label'\n";
 }
 
+# parsing now preserves deep structure but for this we just want flat list
+sub _flatten {
+  my ($data) = @_;
+  return $data if ref($data) ne 'ARRAY';
+  map _flatten($_), @$data;
+}
+
 ######################################################################
 # Draw the node record shapes
 ######################################################################
@@ -856,7 +863,7 @@ sub _createRecordNode
   # Get Rectangle Coords
   my @rectsCoords = map [ split ',', $_ ], split ' ', $attrs{rects};
 
-  my @labels = @{ _parse($label) };
+  my @labels = _flatten(_parse($label));
 
   # Draw the rectangles
   my $portIndex = 1;  # Ports numbered from 1. This is used for the port name
