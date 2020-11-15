@@ -80,7 +80,7 @@ sub show
 
   # Layout is actually done in the background, so the graph
   # will get updated when the new layout is ready
-  $self->_startGraphLayout ( $graph, fit => 1, %opt );
+  $self->_startGraphLayout ( $graph, %opt );
 }
 
 
@@ -1999,6 +1999,11 @@ Allows additional default node attributes to be specified.  Each name => value p
 =item edgeattrs => [ name => value, ... ]
 
 Allows additional default edge attributes to be specified.  Each name => value pair will be passed to dot as '-Ename=value' on the command-line.
+
+=item fit => $boolean
+
+If true, calls the L<< /$gv->fit() >> method after parsing the DOT output.
+As of 1.05, this no longer defaults to true.
 
 =back
 
