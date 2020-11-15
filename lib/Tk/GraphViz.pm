@@ -401,17 +401,17 @@ sub _parseLayout
     }
 
     if ( /^\s+node\s*\[(.+)(?:\];)?/ ) {
-      $self->_parseAttrs ( "$1", \%allNodeAttrs );
+      %allNodeAttrs = (%allNodeAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
     if ( /^\s+edge\s*\[(.+)(?:\];)?/ ) {
-      $self->_parseAttrs ( "$1", \%allEdgeAttrs );
+      %allEdgeAttrs = (%allEdgeAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
     if ( /^\s+graph\s*\[(.+)(?:\];)?/ ) {
-      $self->_parseAttrs ( "$1", \%graphAttrs );
+      %graphAttrs = (%graphAttrs, %{ _parseAttrs("$1") });
       next;
     }
 
@@ -465,8 +465,7 @@ sub _parseLayout
     if ( /\s*(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
       # Edge
       my ($n1,$n2,$attrs) = ($1,$2,$3);
-      my %edgeAttrs = %allEdgeAttrs;
-      $self->_parseAttrs ( $attrs, \%edgeAttrs );
+      my %edgeAttrs = (%allEdgeAttrs, %{ _parseAttrs($attrs) });
 
       my ($x1,$y1,$x2,$y2) = $self->_createEdge ( $n1, $n2, %edgeAttrs );
       $minX = min($minX,$x1);
@@ -477,12 +476,11 @@ sub _parseLayout
       # Node
       my ($name,$attrs) = ($1,$2);
 
-      # Get rid of any leading/tailing quotes
+      # Get rid of any leading/trailing quotes
       $name =~ s/^\"//;
       $name =~ s/\"$//;
 
-      my %nodeAttrs = %allNodeAttrs;
-      $self->_parseAttrs ( $attrs, \%nodeAttrs ) if $attrs;
+      my %nodeAttrs = (%allNodeAttrs, %{ _parseAttrs($attrs) });
 
       my ($x1,$y1,$x2,$y2) = $self->_createNode ( $name, %nodeAttrs );
       $minX = min($minX,$x1);
@@ -502,13 +500,11 @@ sub _parseLayout
 # Parse attributes of a node / edge / graph / etc,
 # store the values in a hash
 ######################################################################
-sub _parseAttrs
-{
-  my ($self, $attrs, $attrHash) = @_;
-
+sub _parseAttrs {
+  my ($attrs) = @_;
+  my %attrHash;
   while ( $attrs =~ s/^,?\s*([^=]+)=// ) {
     my ($key) = ($1);
-
     # Scan forward until end of value reached -- the first
     # comma not in a quoted string.
     # Probably a more efficient method for doing this, but...
@@ -525,16 +521,14 @@ sub _parseAttrs
        $last = $ch;
     }
     $attrs = join('', splice ( @chars, $i ) );
-
     # Strip leading and trailing ws in key and value
     $key =~ s/^\s+|\s+$//g;
     $val =~ s/^\s+|\s+$//g;
-
     if ( $val =~ /^\"(.*)\"$/ ) { $val = $1; }
     $val =~ s/\\\"/\"/g; # Un-escape quotes
-    $attrHash->{$key} = $val;
+    $attrHash{$key} = $val;
   }
-
+  \%attrHash;
 }
 
 
