@@ -21,7 +21,7 @@ use Carp;
 use IPC::Open3;
 use POSIX qw( :sys_wait_h :errno_h );
 use Fcntl;
-
+use Text::ParseWords qw(parse_line);
 
 # Initialize as a derived Tk widget
 Construct Tk::Widget 'GraphViz';
@@ -389,34 +389,25 @@ sub _parseLayout
     s/^\s+//;
 
     #STDERR->print ( "gv _parse: '$_'\n" );
+    my @words = parse_line '\s+', 1, $_;
 
-    if ( /^(?:di)?graph\s*.*\{\s*$/ ) {
+    if ($words[0] =~ /^(?:di)?graph$/ and $words[-1] eq '{') {
       # starting line, ignore
       next;
     }
 
-    if ( /^\]\s*;\s*$/ ) {
+    if ( $words[0] =~ /^\]\s*;$/ ) {
       # end of attributes not finishing on same line as important info, ignore
       next;
     }
 
-    if ( /^node\s*\[(.+)(?:\];)?/ ) {
-      %{ $context->{node} } = (%{ $context->{node} }, %{ _parseAttrs("$1") });
+    if ($context->{my $c = $words[0]}) {
+      shift @words;
+      %{ $context->{$c} } = (%{ $context->{$c} }, %{ _parseAttrs(join ' ', @words) });
       next;
     }
 
-    if ( /^edge\s*\[(.+)(?:\];)?/ ) {
-      %{ $context->{edge} } = (%{ $context->{edge} }, %{ _parseAttrs("$1") });
-      next;
-    }
-
-    if ( /^graph\s*\[(.+)(?:\];)?/ ) {
-      %{ $context->{graph} } = (%{ $context->{graph} }, %{ _parseAttrs("$1") });
-      next;
-    }
-
-    if ( /^subgraph\s*.*\s*\{/ ||
-         /^\{/ ) {
+    if ( ($words[0] eq 'subgraph' and $words[-1] eq '{') or $words[0] eq '{') {
       push @saveStack, $context;
       $context = { map +($_ => {%{ $context->{$_} }}), keys %$context };
       delete $context->{graph}{label};
@@ -424,7 +415,7 @@ sub _parseLayout
       next;
     }
 
-    if ( /^\}/ ) {
+    if ( $words[0] eq '}' ) {
       # End of a graph section
       if ( @saveStack ) {
 	# Subgraph
@@ -436,7 +427,6 @@ sub _parseLayout
 	  $maxY = max($maxY,$y2);
 	  $self->_createSubgraph($x1, $y1, $x2, $y2, %{ $context->{graph} });
 	}
-
 	$context = pop @saveStack;
 	next;
       } else {
@@ -448,21 +438,18 @@ sub _parseLayout
 	  $minY = min($minY,$y1);
 	  $maxX = max($maxX,$x2);
 	  $maxY = max($maxY,$y2);
-
 	  # delete bb attribute so rectangle is not drawn around whole graph
 	  delete $context->{graph}{bb};
-
 	  $self->_createSubgraph ($x1, $y1, $x2, $y2, %{ $context->{graph} });
 	}
 	last;
       }
     }
 
-    if ( /(.+)\s+-[>\-]\s*(.+?)\s*\[(.+)\];/ ) {
+    if ( ($words[1] || '') =~ /^-[>\-]$/ ) {
       # Edge
-      my ($n1,$n2,$attrs) = ($1,$2,$3);
-      my %edgeAttrs = (%{ $context->{edge} }, %{ _parseAttrs($attrs) });
-
+      my ($n1, undef, $n2) = splice @words, 0, 3;
+      my %edgeAttrs = (%{ $context->{edge} }, %{ _parseAttrs(join ' ', @words) });
       my ($x1,$y1,$x2,$y2) = $self->_createEdge ( $n1, $n2, %edgeAttrs );
       $minX = min($minX,$x1);
       $minY = min($minY,$y1);
@@ -470,14 +457,11 @@ sub _parseLayout
       $maxY = max($maxY,$y2);
     } elsif ( /(.+?)\s*(?:\[(.+)\];)?\s*$/ ) {
       # Node
-      my ($name,$attrs) = ($1,$2);
-
+      my ($name) = splice @words, 0, 1;
       # Get rid of any leading/trailing quotes
       $name =~ s/^\"//;
-      $name =~ s/\"$//;
-
-      my %nodeAttrs = (%{ $context->{node} }, %{ _parseAttrs($attrs) });
-
+      $name =~ s/\"?;?$//;
+      my %nodeAttrs = (%{ $context->{node} }, %{ _parseAttrs(join ' ', @words) });
       my ($x1,$y1,$x2,$y2) = $self->_createNode ( $name, %nodeAttrs );
       $minX = min($minX,$x1);
       $minY = min($minY,$y1);
@@ -497,29 +481,11 @@ sub _parseLayout
 sub _parseAttrs {
   my ($attrs) = @_;
   my %attrHash;
-  while ( $attrs =~ s/^,?\s*([^=]+)=// ) {
-    my ($key) = ($1);
-    # Scan forward until end of value reached -- the first
-    # comma not in a quoted string.
-    # Probably a more efficient method for doing this, but...
-    my @chars = split(//, $attrs);
-    my $quoted = 0;
-    my $val = '';
-    my $last = '';
-    my ($i,$n);
-    for ( ($i,$n) = (0, scalar(@chars)); $i < $n; ++$i ) {
-       my $ch = $chars[$i];
-       last if $ch eq ',' && !$quoted;
-       if ( $ch eq '"' ) { $quoted = !$quoted unless $last eq '\\'; }
-       $val .= $ch;
-       $last = $ch;
-    }
-    $attrs = join('', splice ( @chars, $i ) );
-    # Strip leading and trailing ws in key and value
-    $key =~ s/^\s+|\s+$//g;
-    $val =~ s/^\s+|\s+$//g;
-    if ( $val =~ /^\"(.*)\"$/ ) { $val = $1; }
-    $val =~ s/\\\"/\"/g; # Un-escape quotes
+  $attrs =~ s/^\[(.*?)\]?;?\s*$/$1/;
+  for (parse_line '\s*,\s*', 1, $attrs) {
+    my ($key, $val) = split /\s*=\s*/, $_, 2;
+    $val =~ s/^"(.*)"$/$1/;
+    $val =~ s/\\(.)/ $1 eq '"' ? $1 : "\\$1" /ge;
     $attrHash{$key} = $val;
   }
   \%attrHash;
