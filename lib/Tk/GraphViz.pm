@@ -1338,7 +1338,7 @@ sub createBindings
   if ( defined $opt{'-keypad'} ) {
     $self->_createKeypadBindings( %opt );
   }
-
+  $self;
 }
 
 

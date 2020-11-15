@@ -2,6 +2,7 @@
 - record label justification now correct
 - records have fillcolor, font, etc respected
 - use Tk::IO, not own complicated scheme
+- createBindings returns $self for chaining
 
 1.04 2020-11-08
 - tests only run when can do display stuff, avoiding false negatives
