@@ -12,12 +12,35 @@ my @DATA = (
       { '' => 'true\\l' }
     ],
   ],
+  [
+    '{<port1> echo\ hi\\l|wc -l\l|true\l}',
+    [
+      { 'port1' => 'echo\\ hi\\l' },
+      { '' => 'wc -l\\l' },
+      { '' => 'true\\l' }
+    ],
+  ],
+  [
+    '<f0> |<f1> |<f2> |<f3> |<f4> |<f5> |<f6> | ',
+    [
+      { 'f0' => '' },
+      { 'f1' => '' },
+      { 'f2' => '' },
+      { 'f3' => '' },
+      { 'f4' => '' },
+      { 'f5' => '' },
+      { 'f6' => '' },
+      { '' => ' ' },
+    ],
+  ],
 );
 
-plan tests => scalar @DATA;
+plan tests => 2 * @DATA;
 
 for my $d (@DATA) {
-  is_deeply_dump(Tk::GraphViz::_parse($d->[0]), $d->[1], $d->[0]);
+  my $got = eval { Tk::GraphViz::_parse($d->[0]) };
+  is $@, '', "no error $d->[0]";
+  is_deeply_dump($got, $d->[1], $d->[0]);
 }
 
 sub is_deeply_dump {

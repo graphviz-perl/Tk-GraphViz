@@ -504,100 +504,94 @@ sub new {
 [
 	{#State 0
 		ACTIONS => {
-			'T_string' => -9,
-			"<" => 5,
+			'T_string' => 2,
+			"<" => 4,
 			"{" => 6
 		},
-		DEFAULT => -2,
+		DEFAULT => -8,
 		GOTOS => {
-			'field' => 1,
-			'rlabel' => 4,
-			'boxlabel' => 3,
-			'optName' => 2
+			'cell' => 1,
+			'field' => 3,
+			'portSpec' => 5,
+			'cellList' => 7
 		}
 	},
 	{#State 1
-		ACTIONS => {
-			"|" => 8
-		},
-		DEFAULT => -4,
-		GOTOS => {
-			'optMoreFields' => 7
-		}
+		DEFAULT => -3
 	},
 	{#State 2
+		DEFAULT => -7
+	},
+	{#State 3
+		ACTIONS => {
+			'' => 8
+		}
+	},
+	{#State 4
 		ACTIONS => {
 			'T_string' => 9
 		}
 	},
-	{#State 3
-		DEFAULT => -5
-	},
-	{#State 4
-		ACTIONS => {
-			'' => 10
-		}
-	},
 	{#State 5
 		ACTIONS => {
-			'T_string' => 11
-		}
+			'T_string' => 10
+		},
+		DEFAULT => -6
 	},
 	{#State 6
 		ACTIONS => {
-			'T_string' => -9,
-			"<" => 5,
-			"{" => 6
+			'T_string' => 2,
+			"<" => 4
 		},
-		DEFAULT => -2,
+		DEFAULT => -8,
 		GOTOS => {
-			'field' => 1,
-			'rlabel' => 12,
-			'boxlabel' => 3,
-			'optName' => 2
+			'cell' => 1,
+			'portSpec' => 5,
+			'cellList' => 11
 		}
 	},
 	{#State 7
+		ACTIONS => {
+			"|" => 12
+		},
 		DEFAULT => -1
 	},
 	{#State 8
-		ACTIONS => {
-			'T_string' => -9,
-			"<" => 5,
-			"{" => 6
-		},
-		DEFAULT => -2,
-		GOTOS => {
-			'field' => 1,
-			'rlabel' => 13,
-			'boxlabel' => 3,
-			'optName' => 2
-		}
+		DEFAULT => 0
 	},
 	{#State 9
-		DEFAULT => -7
+		ACTIONS => {
+			">" => 13
+		}
 	},
 	{#State 10
-		DEFAULT => 0
+		DEFAULT => -5
 	},
 	{#State 11
 		ACTIONS => {
-			">" => 14
+			"}" => 14,
+			"|" => 12
 		}
 	},
 	{#State 12
 		ACTIONS => {
-			"}" => 15
+			'T_string' => 2,
+			"<" => 4
+		},
+		DEFAULT => -8,
+		GOTOS => {
+			'cell' => 15,
+			'portSpec' => 5
 		}
 	},
 	{#State 13
-		DEFAULT => -3
+		DEFAULT => -9
 	},
 	{#State 14
-		DEFAULT => -8
+		DEFAULT => -2
 	},
 	{#State 15
-		DEFAULT => -6
+		DEFAULT => -4
 	}
 ],
                                   yyrules  =>
@@ -606,60 +600,65 @@ sub new {
 		 '$start', 2, undef
 	],
 	[#Rule 1
-		 'rlabel', 2,
-sub
-#line 12 "parseRecordLabel.yp"
-{
-					shift;
-					[ map +(ref() eq 'ARRAY' ? @$_ : $_), grep defined, @_ ];
-				}
-	],
-	[#Rule 2
-		 'rlabel', 0, undef
-	],
-	[#Rule 3
-		 'optMoreFields', 2,
-sub
-#line 20 "parseRecordLabel.yp"
-{ #print "rlabel = ".Data::Dumper::Dumper($_[2])." in optMoreFields\n";
-					return $_[2]; }
-	],
-	[#Rule 4
-		 'optMoreFields', 0, undef
-	],
-	[#Rule 5
 		 'field', 1,
 sub
-#line 25 "parseRecordLabel.yp"
-{ return $_[1]; }
+#line 11 "parseRecordLabel.yp"
+{ $_[1] }
 	],
-	[#Rule 6
+	[#Rule 2
 		 'field', 3,
 sub
-#line 26 "parseRecordLabel.yp"
-{ return $_[2]; }
+#line 12 "parseRecordLabel.yp"
+{ $_[2] }
+	],
+	[#Rule 3
+		 'cellList', 1,
+sub
+#line 15 "parseRecordLabel.yp"
+{ [ $_[1] ] }
+	],
+	[#Rule 4
+		 'cellList', 3,
+sub
+#line 16 "parseRecordLabel.yp"
+{ [ @{ $_[1] }, $_[3] ] }
+	],
+	[#Rule 5
+		 'cell', 2,
+sub
+#line 19 "parseRecordLabel.yp"
+{ +{ $_[1], $_[2] } }
+	],
+	[#Rule 6
+		 'cell', 1,
+sub
+#line 20 "parseRecordLabel.yp"
+{ +{ $_[1], '' } }
 	],
 	[#Rule 7
-		 'boxlabel', 2,
+		 'cell', 1,
 sub
-#line 29 "parseRecordLabel.yp"
-{ return { $_[1] || '', $_[2] } ;  }
+#line 21 "parseRecordLabel.yp"
+{ +{ '', $_[1] } }
 	],
 	[#Rule 8
-		 'optName', 3,
+		 'cell', 0,
 sub
-#line 32 "parseRecordLabel.yp"
-{ return $_[2] }
+#line 22 "parseRecordLabel.yp"
+{ +{ '', '' } }
 	],
 	[#Rule 9
-		 'optName', 0, undef
+		 'portSpec', 3,
+sub
+#line 25 "parseRecordLabel.yp"
+{ $_[2] }
 	]
 ],
                                   @_);
     bless($self,$class);
 }
 
-#line 36 "parseRecordLabel.yp"
+#line 28 "parseRecordLabel.yp"
 
 
 sub Error {
@@ -673,9 +672,11 @@ sub Error {
     # Get rid of all but the first line
     ($input) = split("\n",$input);
 
-    print "Parse Error, Got token/value '$token', '$value'; Expected token '$expected'\n";
-    print "Near line :\n".$input."\n";
-    exit(1);
+    die <<EOF;
+Parse Error, Got token/value '$token', '$value'; Expected token '$expected'
+Near line :
+$input
+EOF
 }
 
 sub Lexer {

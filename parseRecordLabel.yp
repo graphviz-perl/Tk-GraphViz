@@ -8,29 +8,21 @@
 %left '{'
 %%
 
-rlabel		:	field  optMoreFields
-				{
-					shift;
-					[ map +(ref() eq 'ARRAY' ? @$_ : $_), grep defined, @_ ];
-				}
-
-		|	/* empty */
+field		:	cellList         { $_[1] }
+		|	'{' cellList '}' { $_[2] }
 		;
 
-optMoreFields   :	'|'  rlabel  { #print "rlabel = ".Data::Dumper::Dumper($_[2])." in optMoreFields\n";
-					return $_[2]; }
-		|	/* empty */
+cellList	:	cell              { [ $_[1] ] }
+		|	cellList '|' cell { [ @{ $_[1] }, $_[3] ] }
 		;
 
-field		:	boxlabel         { return $_[1]; }
-		|	'{' rlabel '}'   { return $_[2]; }
+cell		:	portSpec T_string { +{ $_[1], $_[2] } }
+		|	portSpec          { +{ $_[1], '' } }
+		|	         T_string { +{ '', $_[1] } }
+		|	/* empty */       { +{ '', '' } }
 		;
 
-boxlabel	:	optName T_string { return { $_[1] || '', $_[2] } ;  }
-		;
-
-optName		:	'<' T_string '>'  { return $_[2] }
-		|	/* empty */
+portSpec	:	'<' T_string '>'  { $_[2] }
 		;
 
 %%
@@ -46,9 +38,11 @@ sub Error {
     # Get rid of all but the first line
     ($input) = split("\n",$input);
 
-    print "Parse Error, Got token/value '$token', '$value'; Expected token '$expected'\n";
-    print "Near line :\n".$input."\n";
-    exit(1);
+    die <<EOF;
+Parse Error, Got token/value '$token', '$value'; Expected token '$expected'
+Near line :
+$input
+EOF
 }
 
 sub Lexer {
