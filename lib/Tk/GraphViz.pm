@@ -934,8 +934,8 @@ sub _createEdge
 
   my @args = ();
 
-  # Convert Biezer control points to 4 real points to smooth against
-  #  Canvas line smoothing doesn't use beizers, so we supply more points
+  # Convert Bezier control points to 4 real points to smooth against
+  #  Canvas line smoothing doesn't use beziers, so we supply more points
   #   along the manually-calculated bezier points.
 
   @coords = map @$_, @coords; #flatten coords array
@@ -1122,7 +1122,7 @@ sub _parseEdgePos
 #   $lastFlag: Flag = 1 to generate the last point (where t = 1)
 #
 #  Output;
-#   @outputPoints: Array of points along the biezier curve
+#   @outputPoints: Array of points along the bezier curve
 #
 #  Equations used
 #Found Bezier Equations at http://pfaedit.sourceforge.net/bezier.html
