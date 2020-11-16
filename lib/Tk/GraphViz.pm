@@ -2103,7 +2103,7 @@ Lots of DOT language features not yet implemented
 
 =head1 ACKNOWLEDGEMENTS
 
-See http://www.graphviz.org/ for more info on the graphviz tools.
+See L<http://www.graphviz.org/> for more info on the graphviz tools.
 
 =head1 AUTHOR
 
