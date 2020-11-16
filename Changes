@@ -1,3 +1,4 @@
+1.06 2020-11-16
 - fix accidental double-run of dot with async=0
 
 1.05 2020-11-16
