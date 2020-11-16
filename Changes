@@ -1,3 +1,4 @@
+1.05 2020-11-16
 - fix handling of \-quoting in labels
 - record label justification now correct
 - records have fillcolor, font, etc respected
