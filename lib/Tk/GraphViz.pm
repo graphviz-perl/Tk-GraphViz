@@ -866,7 +866,7 @@ sub _flatten {
 ######################################################################
 # Draw the node record shapes
 ######################################################################
-my $TEXT_MARGIN = 3; # arbitrarily chosen
+my $TEXT_MARGIN = 8; # arbitrarily chosen
 sub _createRecordNode
 {
   my ($self, $label, $shape_args, %attrs) = @_;
