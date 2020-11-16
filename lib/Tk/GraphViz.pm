@@ -679,6 +679,18 @@ my %polyShapes =
                    [ -0.03, 0.7 ], [ -0.03, 0.9 ], [ 0.03 , 0.9 ],
                    [ 0.03, 0.7 ], [ 0.03 , 0.9 ], [ 0 , 0.9 ],
                    [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] ],
+    Msquare => [
+      [0, 0], [0, 0.2], [0.2, 0], [0, 0.2], [0, 0], # non-closed triangle = stays filled
+      [1, 0], [1, 0.2], [0.8, 0], [1, 0.2], [1, 0],
+      [1, 1], [1, 0.8], [0.8, 1], [1, 0.8], [1, 1],
+      [0, 1], [0, 0.8], [0.2, 1], [0, 0.8], [0, 1],
+      ],
+    Mdiamond => [
+      [0.0, 0.5], [0.1, 0.4], [0.1, 0.6], [0.1, 0.4], [0.0, 0.5],
+      [0.5, 0.0], [0.6, 0.1], [0.4, 0.1], [0.6, 0.1], [0.5, 0.0],
+      [1.0, 0.5], [0.9, 0.6], [0.9, 0.4], [0.9, 0.6], [1.0, 0.5],
+      [0.5, 1.0], [0.4, 0.9], [0.6, 0.9], [0.4, 0.9], [0.5, 1.0],
+      ],
 );
 
 sub _createShapeNode
@@ -1921,7 +1933,7 @@ Tk::GraphViz - Render an interactive GraphViz graph
 
 =head1 DESCRIPTION
 
-The B<GraphViz> widget is derived from B<Tk::Canvas>.  It adds the ability to render graphs in the canvas.  The graphs can be specified either using the B<DOT> graph-description language, or using via a L<GraphViz> or L<GraphViz2> object.
+The B<GraphViz> widget is derived from L<Tk::Canvas>.  It adds the ability to render graphs in the canvas.  The graphs can be specified either using the B<DOT> graph-description language, or using via a L<GraphViz> or L<GraphViz2> object.
 
 When B<show()> is called, the graph is passed to the B<dot> command to generate the layout info.  That info is then used to create rectangles, lines, etc in the canvas that reflect the generated layout.
 
