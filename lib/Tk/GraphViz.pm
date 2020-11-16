@@ -257,6 +257,7 @@ sub _startDot
     $pipe->reader ( @layout_cmd );
     while ( <$pipe> ) { push @{$self->{layout}}, $_; }
     $then->();
+    return 1;
   }
 
   my $fh  = Tk::IO->new(
