@@ -45,11 +45,18 @@ cmdButton($buttonFrame, 'Zoom out X' => 9, [$gv, qw(zoom -out 1.5)], 'left');
 cmdButton($buttonFrame, Quit => 0, [$mw, 'destroy'], 'right');
 
 my $currentFile;
-$gv->bind($_, '<Any-Enter>', sub {
-  # if bind to '<Button-1>', acts when click an entity
-  $statusText = join ' ', ($gv->gettags('current'))[0..1];
-}) for qw(node edge);
+$gv->bind($_, '<Any-Enter>', _bindClosure($_)) for qw(node edge subgraph);
 $gv->bind('all', '<Any-Leave>', sub { $statusText = $currentFile });
+
+sub _bindClosure {
+  my $type = $_[0];
+  sub {
+    # if bind to '<Button-1>', acts when click an entity
+    my @tags = $gv->gettags('current');
+    my ($entity) = map /^$type=(.*)/, @tags;
+    $statusText = $entity;
+  };
+}
 
 $mw->geometry("800x400");
 showDots();

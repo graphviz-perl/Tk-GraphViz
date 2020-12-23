@@ -22,8 +22,8 @@ ok ( eval { $gv->show ( dirname(__FILE__).'/test1.dot' ) } );
 is $@, '', 'no error in ->show';
 
 # Check the number of nodes, edges, subgraphs
-my @nodes = $gv->find ( withtag => 'node' );
-is scalar @nodes, 16, 'number nodes' or diag explain \@nodes;
+my @nodes = $gv->find ( withtag => 'node&&outermost' );
+is scalar @nodes, 15, 'number nodes' or diag explain \@nodes;
 my $got = [ sort $gv->nodes ];
 is_deeply $got, ['a'..'l', 'x'..'z'] or diag explain $got;
 isnt $gv->_findNode('a'), undef;
