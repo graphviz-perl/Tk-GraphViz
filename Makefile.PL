@@ -45,6 +45,11 @@ WriteMakefile(
       license => [ 'http://dev.perl.org/licenses/' ],
     },
     prereqs => {
+      runtime => {
+        recommends => {
+          'Tk::MatchEntry' => '0.5',
+        },
+      },
       develop => {
         requires => {
           'Test::Pod::Coverage' => '1.08',

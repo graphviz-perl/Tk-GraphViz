@@ -65,18 +65,22 @@ MainLoop;
 
 sub findNode {
   my ($mw, $gv) = @_;
-  $gv->scrollTo(simpleDialog($mw, 'Node Name Dialog'));
+  $gv->scrollTo(getNodeSearch($mw, 'Node Name Dialog', [ sort $gv->nodes ]));
 }
 
-sub simpleDialog {
-  my ($mw, $title) = @_;
+sub getNodeSearch {
+  my ($mw, $title, $choices) = @_;
   require Tk::DialogBox;
-  require Tk::Entry;
   my $dialog = $mw->DialogBox(-title => $title, -default_button => 'OK', -buttons => [qw/OK Cancel/]);
-  my $entry = $dialog->add('Entry')->pack;
+  my ($text, $entry);
+  if (eval { require Tk::MatchEntry; 1 }) {
+    $entry = $dialog->add('MatchEntry', -variable => \$text, choices => $choices)->pack;
+  } else {
+    require Tk::BrowseEntry;
+    $entry = $dialog->add('BrowseEntry', -variable => \$text, choices => $choices)->pack;
+  }
   $dialog->configure(-focus => $entry);
   my $ans = $dialog->Show;
-  my $text = $entry->get;
   $dialog->destroy;
   $ans ne 'OK' ? undef : $text;
 }
@@ -145,6 +149,10 @@ format. Allows you to scroll instantly to a specified node.
 
 When the pointer is over a node or edge, shows you their name or
 incident nodes.
+
+If L<Tk::MatchEntry> is available, the search functionality will use it
+to autocomplete the node name. If not, L<Tk::BrowseEntry> is used so
+you can select from the dropdown, or type the name.
 
 =head1 OPTIONS
 
