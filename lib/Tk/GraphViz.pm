@@ -1742,12 +1742,18 @@ sub zoomToRect
   1;
 }
 
-sub scrollTo {
+sub _findNode {
   my ($self, $node) = @_;
   return if !defined $node or !length $node;
   my @f = $self->find(withtag => "node&&$node");
   return if @f != 1;
-  my @c = $self->coords(@f);
+  $f[0];
+}
+
+sub scrollTo {
+  my ($self, $node) = @_;
+  return if !defined(my $id = $self->_findNode($node));
+  my @c = $self->coords($id);
   $self->_centerView(@c);
 }
 
@@ -1773,7 +1779,8 @@ sub _centerView {
 
 sub nodes {
   my ($self) = @_;
-  map {
+  my %u;
+  grep !$u{$_}++, map {
     my @tags = $self->gettags($_);
     +{ @tags % 2 ? (@tags, undef) : @tags }->{node};
   } $self->find ( withtag => 'node' );
