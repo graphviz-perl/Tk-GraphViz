@@ -1773,6 +1773,14 @@ sub _centerView {
   $self->yview('moveto' => $toy);
 }
 
+sub nodes {
+  my ($self) = @_;
+  map {
+    my @tags = $self->gettags($_);
+    +{ @tags % 2 ? (@tags, undef) : @tags }->{node};
+  } $self->find ( withtag => 'node' );
+}
+
 ######################################################################
 # Over-ridden createText Method
 #
@@ -2073,6 +2081,11 @@ The factor should be > 1.0 in order to get reasonable behavior.
 
 If the given node (identified by being tagged with C<node> and that
 nodename) exists, the viewport is moved to have that at the centre.
+
+=head2 $gv->nodes
+
+Returns a list of the names of the graph's nodes, as identified by being
+tagged with C<node>.
 
 =head1 TAGS
 
