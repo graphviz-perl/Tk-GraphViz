@@ -34,6 +34,8 @@ my $gv = makeScrolledWidget(
 my $buttonFrame = $mw->Frame->pack(-side => 'bottom');
 my $statusLabel = $mw->Label->pack(-side => 'bottom');
 my $nextButton = cmdButton($buttonFrame, Next => 0, [\&showDots], qw(left -state disabled));
+cmdButton($buttonFrame, 'Zoom in' => 0, [$gv, qw(zoom -in 1.5)], 'left');
+cmdButton($buttonFrame, 'Zoom out X' => 9, [$gv, qw(zoom -out 1.5)], 'left');
 cmdButton($buttonFrame, Quit => 0, [$mw, 'destroy'], 'right');
 
 $mw->geometry("800x400");
