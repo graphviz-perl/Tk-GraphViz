@@ -34,6 +34,7 @@ my $gv = makeScrolledWidget(
 my $buttonFrame = $mw->Frame->pack(-side => 'bottom');
 my $statusLabel = $mw->Label->pack(-side => 'bottom');
 my $nextButton = cmdButton($buttonFrame, Next => 0, [\&showDots], qw(left -state disabled));
+cmdButton($buttonFrame, 'Find node' => 0, [\&findNode, $gv], 'left');
 cmdButton($buttonFrame, 'Zoom in' => 0, [$gv, qw(zoom -in 1.5)], 'left');
 cmdButton($buttonFrame, 'Zoom out X' => 9, [$gv, qw(zoom -out 1.5)], 'left');
 cmdButton($buttonFrame, Quit => 0, [$mw, 'destroy'], 'right');
@@ -42,6 +43,24 @@ $mw->geometry("800x400");
 showDots();
 
 MainLoop;
+
+sub findNode {
+  my ($mw, $gv) = @_;
+  $gv->scrollTo(simpleDialog($mw, 'Node Name Dialog'));
+}
+
+sub simpleDialog {
+  my ($mw, $title) = @_;
+  require Tk::DialogBox;
+  require Tk::Entry;
+  my $dialog = $mw->DialogBox(-title => $title, -default_button => 'OK', -buttons => [qw/OK Cancel/]);
+  my $entry = $dialog->add('Entry')->pack;
+  $dialog->configure(-focus => $entry);
+  my $ans = $dialog->Show;
+  my $text = $entry->get;
+  $dialog->destroy;
+  $ans ne 'OK' ? undef : $text;
+}
 
 sub cmdButton {
   my ($frame, $label, $underline_index, $cmd, $pack, @but_args) = @_;
