@@ -1,5 +1,6 @@
 - nodes method
 - edges method
+- promote JGS's useful t/compareGraphs to scripts/tkgraphviz
 
 1.08 2020-12-23
 - scrollTo method
