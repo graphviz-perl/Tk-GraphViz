@@ -2103,27 +2103,37 @@ C<edge>, as array-refs with the incident nodes' names.
 
 =head1 TAGS
 
-In order to facilitate binding, etc, all of the graph elements (nodes, edges, subgraphs) that a created in the cavas.  Specific tags are given to each class of element.  Additionally, all attributes attached to an element in the graph description (e.g. 'color', 'style') will be included as tags.
+In order to facilitate binding, etc, all of the graph elements (nodes,
+edges, subgraphs) that are created in the canvas will be tagged.
+Additionally, all attributes attached to an element in the graph
+description (e.g. 'color', 'style') will be included as tags.
 
 =head2 Nodes
 
-Node elements are identified with a 'node' tag.  For example, to bind something to all nodes in a graph:
+Node elements are identified with a 'node' tag.  For example, to bind
+something to all nodes in a graph:
 
     $gv->bind ( 'node', '<Any-Enter>', sub { ... } );
 
-The value of the 'node' tag is the name of the node in the graph (which is not equivalent to the node label -- that is the 'label' tag)
+The value of the 'node' tag is the name of the node in the graph (which
+is not equivalent to the node label -- that is the 'label' tag)
 
 =head2 Edges
 
-Edge elements are identified with a 'edge' tag.  For example, to bind something to all edges in a graph:
+Edge elements are identified with a 'edge' tag.  For example, to bind
+something to all edges in a graph:
 
     $gv->bind ( 'edge', '<Any-Enter>', sub { ... } );
 
-The value of the 'edge' tag is an a string of the form "node1 node2", where node1 and node2 are the names of the respective nodes.  To make it convenient to get the individual node names, the edge also has tags 'node1' and 'node2', which give the node names separately.
+The value of the 'edge' tag is an a string of the form "node1 node2",
+where node1 and node2 are the names of the respective nodes.  To make
+it convenient to get the individual node names, the edge also has tags
+'node1' and 'node2', which give the node names separately.
 
 =head2 Subgraphs
 
-Subgraph elements are identified with a 'subgraph' tag.  The value of the 'subgraph' is the name of the subgraph / cluster.
+Subgraph elements are identified with a 'subgraph' tag.  The value of the
+'subgraph' is the name of the subgraph / cluster.
 
 =head1 EXAMPLES
 
