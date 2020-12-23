@@ -1781,6 +1781,17 @@ sub nodes {
   } $self->find ( withtag => 'node' );
 }
 
+sub edges {
+  my ($self) = @_;
+  map {
+    my @tags = $self->gettags($_);
+    my $tags_h = +{ @tags % 2 ? (@tags, undef) : @tags };
+    my ($counter, @nodes) = 1;
+    push @nodes, $tags_h->{"node".$counter++} while exists $tags_h->{"node$counter"};
+    \@nodes;
+  } $self->find ( withtag => 'edge' );
+}
+
 ######################################################################
 # Over-ridden createText Method
 #
@@ -2086,6 +2097,11 @@ nodename) exists, the viewport is moved to have that at the centre.
 
 Returns a list of the names of the graph's nodes, as identified by being
 tagged with C<node>.
+
+=head2 $gv->edges
+
+Returns a list of the graph's edges, as identified by being tagged with
+C<edge>, as array-refs with the incident nodes' names.
 
 =head1 TAGS
 
