@@ -10,9 +10,6 @@ use Tk 800.020;
 use Tk::Font;
 use Tk::IO;
 
-# Parse::Yapp-generated Parser for parsing record node labels
-use Tk::GraphViz::parseRecordLabel;
-
 use base qw(Tk::Derived Tk::Canvas);
 
 use IO qw(Handle File Pipe);
@@ -845,6 +842,7 @@ sub _createPolyShape
 
 sub _parse {
   my ($label, $debug) = @_;
+  require Tk::GraphViz::parseRecordLabel;
   # Setup to parse the label (Label parser object created using Parse::Yapp)
   my $parser = Tk::GraphViz::parseRecordLabel->new;
   $parser->YYData->{INPUT} = $label;
