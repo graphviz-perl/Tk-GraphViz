@@ -44,6 +44,12 @@ cmdButton($buttonFrame, 'Zoom in' => 0, [$gv, qw(zoom -in 1.5)], 'left');
 cmdButton($buttonFrame, 'Zoom out X' => 9, [$gv, qw(zoom -out 1.5)], 'left');
 cmdButton($buttonFrame, Quit => 0, [$mw, 'destroy'], 'right');
 
+my $currentFile;
+$gv->bind($_, '<Any-Enter>', sub {
+  $statusText = join ' ', ($gv->gettags('current'))[0..1];
+}) for qw(node edge);
+$gv->bind('all', '<Any-Leave>', sub { $statusText = $currentFile });
+
 $mw->geometry("800x400");
 showDots();
 
@@ -88,7 +94,7 @@ sub makeScrolledWidget {
 
 sub showDots {
   return if !@dots;
-  my $currentFile = shift @dots;
+  $currentFile = shift @dots;
   $mw->Busy;
   if ($compare) {
     $mw->update;
@@ -128,6 +134,9 @@ tkgraphviz - visualise graphviz files with Tk
 
 Uses L<Tk::GraphViz> to visualise the given graph file, in Graphviz C<DOT>
 format. Allows you to scroll instantly to a specified node.
+
+When the pointer is over a node or edge, shows you their name or
+incident nodes.
 
 =head1 OPTIONS
 
