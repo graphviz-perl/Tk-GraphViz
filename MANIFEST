@@ -63,4 +63,3 @@ t/graphs/makefile-small.dot
 t/graphs/makefile.dot
 t/record.t
 t/test1.dot
-t/test2.pl
