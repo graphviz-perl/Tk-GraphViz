@@ -36,7 +36,8 @@ my $gv = makeScrolledWidget(
 )->createBindings;
 
 my $buttonFrame = $mw->Frame->pack(-side => 'bottom');
-my $statusLabel = $mw->Label->pack(-side => 'bottom');
+my $statusText = '';
+$mw->Label(-textvariable => \$statusText)->pack(-side => 'bottom');
 my $nextButton = cmdButton($buttonFrame, Next => 0, [\&showDots], qw(left -state disabled));
 cmdButton($buttonFrame, 'Find node' => 0, [\&findNode, $gv], 'left');
 cmdButton($buttonFrame, 'Zoom in' => 0, [$gv, qw(zoom -in 1.5)], 'left');
@@ -91,13 +92,13 @@ sub showDots {
   $mw->Busy;
   if ($compare) {
     $mw->update;
-    $statusLabel->configure(-text => "Generating GIF for $currentFile ...");
+    $statusText = "Generating GIF for $currentFile ...";
     $imageLabel->configure(-image => GenerateImage($imageLabel, $currentFile));
   }
-  $statusLabel->configure(-text => "Generating Tk::GraphViz Canvas for $currentFile ...");
+  $statusText = "Generating Tk::GraphViz Canvas for $currentFile ...";
   $mw->update;
   $gv->show($currentFile, async => $async);
-  $statusLabel->configure(-text => $currentFile);
+  $statusText = $currentFile;
   $mw->Unbusy;
   $nextButton->configure(-state => @dots ? 'normal' : 'disabled');
 }
