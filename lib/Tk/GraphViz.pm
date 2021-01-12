@@ -115,6 +115,7 @@ sub _showGraphLayout
 
   # Display new contents
   my $layoutData = $self->_parseLayout($self->{layout}, %opt);
+  $layoutData = $opt{prerender}->($layoutData) if $opt{prerender};
   $self->_renderGraph($layoutData);
 
   # Update scroll-region to new bounds
@@ -2009,6 +2010,48 @@ Allows additional default edge attributes to be specified.  Each name => value p
 
 If true, calls the L<< /$gv->fit() >> method after parsing the DOT output.
 As of 1.05, this no longer defaults to true.
+
+=item prerender => \&coderef
+
+If given, the code-ref will be called with the graph description data
+before the actual drawing on a canvas begins, in a hash-ref, e.g. for
+the file C<< digraph G { a -> b } >>:
+
+  {
+    edge => {
+      a => {
+	b => [
+	  {
+	    pos => [
+	      { e => 1 },
+	      [
+		[ '27', '71.697' ],
+		[ '27', '63.983' ],
+		[ '27', '54.712' ],
+		[ '27', '46.112' ],
+		[ '27', '36.104' ],
+	      ]
+	    ]
+	  }
+	]
+      }
+    },
+    global => { dpi => 72 }, # default value, might be overridden
+    node => {
+      a => { height => '0.5', label => '\\N', pos => '27,90', width => '0.75' },
+      b => { height => '0.5', label => '\\N', pos => '27,18', width => '0.75' }
+    },
+    subgraph => [
+      [ '0', '0', '54', '108' ]
+    ]
+  }
+
+The code's return value needs to be a hash-ref structured similarly to
+the above, which will be used to render the graph. Coordinates increase
+upwards and to the right. Nodes' C<pos> are at their centre.
+
+This feature is experimental as of 1.10, and the data-structure shape
+or interface may change.
 
 =back
 
