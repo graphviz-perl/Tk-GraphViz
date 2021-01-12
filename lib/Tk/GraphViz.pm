@@ -360,9 +360,7 @@ sub _parseLayout
 {
   my ($self, $layoutLines, %opt) = @_;
 
-  my $directed = 1;
   my $context = { node => {}, edge => {}, graph => {} };
-  my ($minX, $minY, $maxX, $maxY) = ( undef, undef, undef, undef );
   my @saveStack;
 
   my $accum = undef;
@@ -419,10 +417,6 @@ sub _parseLayout
 	# Subgraph
 	if ( defined($context->{graph}{bb}) && $context->{graph}{bb} ne '' ) {
 	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $context->{graph}{bb} );
-	  $minX = min($minX,$x1);
-	  $minY = min($minY,$y1);
-	  $maxX = max($maxX,$x2);
-	  $maxY = max($maxY,$y2);
 	  $self->_createSubgraph($x1, $y1, $x2, $y2, %{ $context->{graph} });
 	}
 	$context = pop @saveStack;
@@ -432,10 +426,6 @@ sub _parseLayout
 	# Create any whole-graph label
 	if ( defined($context->{graph}{bb}) ) {
 	  my ($x1,$y1,$x2,$y2) = split ( /\s*,\s*/, $context->{graph}{bb} );
-	  $minX = min($minX,$x1);
-	  $minY = min($minY,$y1);
-	  $maxX = max($maxX,$x2);
-	  $maxY = max($maxY,$y2);
 	  # delete bb attribute so rectangle is not drawn around whole graph
 	  delete $context->{graph}{bb};
 	  $self->_createSubgraph ($x1, $y1, $x2, $y2, %{ $context->{graph} });
@@ -448,11 +438,7 @@ sub _parseLayout
       # Edge
       my ($n1, undef, $n2) = splice @words, 0, 3;
       my %edgeAttrs = (%{ $context->{edge} }, %{ _parseAttrs(join ' ', @words) });
-      my ($x1,$y1,$x2,$y2) = $self->_createEdge ( $n1, $n2, %edgeAttrs );
-      $minX = min($minX,$x1);
-      $minY = min($minY,$y1);
-      $maxX = max($maxX,$x2);
-      $maxY = max($maxY,$y2);
+      $self->_createEdge ( $n1, $n2, %edgeAttrs );
     } elsif ( /(.+?)\s*(?:\[(.+)\];)?\s*$/ ) {
       # Node
       my ($name) = splice @words, 0, 1;
@@ -460,11 +446,7 @@ sub _parseLayout
       $name =~ s/^\"//;
       $name =~ s/\"?;?$//;
       my %nodeAttrs = (%{ $context->{node} }, %{ _parseAttrs(join ' ', @words) });
-      my ($x1,$y1,$x2,$y2) = $self->_createNode ( $name, %nodeAttrs );
-      $minX = min($minX,$x1);
-      $minY = min($minY,$y1);
-      $maxX = max($maxX,$x2);
-      $maxY = max($maxY,$y2);
+      $self->_createNode ( $name, %nodeAttrs );
     } else {
       warn "Failed to parse DOT line: '$_'";
     }
