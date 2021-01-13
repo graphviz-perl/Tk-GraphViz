@@ -115,10 +115,69 @@ sub showDots {
   }
   $statusText = "Generating Tk::GraphViz Canvas for $currentFile ...";
   $mw->update;
-  $gv->show($currentFile, async => $async);
+  $gv->show($currentFile, async => $async, prerender => \&pr);
   $statusText = $currentFile;
   $mw->Unbusy;
   $nextButton->configure(-state => @dots ? 'normal' : 'disabled');
+}
+
+sub pr {
+  my ($ld) = @_;
+  my @edgegroup_nodes = sort grep /^edgegroup/, keys %{ $ld->{node} };
+  for my $egn (sort @edgegroup_nodes) {
+    my $node = $ld->{node}{$egn};
+    my @inbound = map @$_, grep $_, map $_->{$egn}, values %{ $ld->{edge} };
+    my @outbound = map @$_, values %{ $ld->{edge}{$egn} };
+    my @node_pos = split /,/, $node->{pos};
+    my $avg_angle = avg((map angle_measure($_, 1), @inbound), (map angle_measure($_, 0), @outbound));
+    edge_extend($_, 1, \@node_pos, $avg_angle) for @inbound;
+    edge_extend($_, 0, \@node_pos, $avg_angle) for @outbound;
+    require Math::Trig;
+    $avg_angle += Math::Trig::pi()/2; # at right angles
+    my $node_x = $node_pos[0] + ($node->{width} * $ld->{global}{dpi} * 0.5 * cos $avg_angle);
+    my $node_y = $node_pos[1] + ($node->{height} * $ld->{global}{dpi} * 0.5 * sin $avg_angle);
+    $node->{pos} = join ',', $node_x, $node_y;
+  }
+  $ld;
+}
+
+sub avg { my $s = 0; $s += $_ for @_; $s / (@_ || 1) }
+
+sub angle_measure {
+  my ($e, $head) = @_;
+  my $main = $e->{pos}[1];
+  my ($tip, $tipnext) = $head ? (-1, -2) : (0, 1);
+  if (!grep $main->[$tip][$_] ne $main->[$tipnext][$_], 0..1) {
+    # duplicate points
+    ($head ? $_-- : $_++) for $tip, $tipnext;
+  }
+  my ($x, $y) = map $main->[$tipnext][$_] - $main->[$tip][$_], 0..1;
+  require Math::Trig;
+  my $angle = atan2($y, $x);
+  $angle += Math::Trig::pi() if $angle < 0; # normalise to 0-pi
+  $angle -= Math::Trig::pi() if $angle > Math::Trig::pi()/2; # now normalise to -pi/2 - pi/2
+  $angle;
+}
+
+sub edge_extend {
+  my ($e, $head, $towards, $avg_angle) = @_;
+  my $main = $e->{pos}[1];
+  my ($tip, $tipnext, $tipnext2) = $head ? (-1, -2, -3) : (0, 1, 2);
+  my @seps = map $main->[$tip][$_] - $towards->[$_], 0..1;
+  my $dist = sqrt(($seps[0] * $seps[0]) + ($seps[1] * $seps[1]));
+  require Math::Trig;
+  $avg_angle += Math::Trig::pi() if $seps[0] < 0; # fix quadrant
+  my ($inter_dist1, $inter_dist2) = (0.5, 0.2);
+  my $intermediate = [$towards->[0] + ($dist * $inter_dist1 * cos $avg_angle), $towards->[1] + ($dist * $inter_dist1 * sin $avg_angle)];
+  if (!grep $main->[$tip][$_] ne $main->[$tipnext][$_], 0..1) {
+    # duplicate points
+    $main->[$tip] = $intermediate;
+  } else {
+    $head ? push @$main, $intermediate : unshift @$main, $intermediate;
+  }
+  my $intermediate2 = [$towards->[0] + ($dist * $inter_dist2 * cos $avg_angle), $towards->[1] + ($dist * $inter_dist2 * sin $avg_angle)];
+  $head ? push @$main, $intermediate2 : ();#unshift @$main, $intermediate2;
+  $head ? push @$main, $towards : unshift @$main, $towards;
 }
 
 ##############################################

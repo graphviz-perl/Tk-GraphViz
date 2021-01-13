@@ -1,0 +1,25 @@
+digraph H {
+  rankdir=LR
+  /*
+  { 1 2 } -> { 4 5 6 } [edgegroup=E1 label=E1]
+  { 3 4 } -> { 7 8 } [edgegroup=E2 label=E2]
+  { 6 } -> { 9 10 } [edgegroup=E3 label=E3]
+  { 10 11 } -> { 12 } [edgegroup=E4 label=E4]
+  { 8 9 } -> { invis1 [style=invis shape=point width=0 height=0] } [edgegroup=E5 label=E5] // empty head
+  */
+  edgegroup1 [label=E1 shape=plaintext]
+  edgegroup2 [label=E2 shape=plaintext]
+  edgegroup3 [label=E3 shape=plaintext]
+  edgegroup4 [label=E4 shape=plaintext]
+  edgegroup5 [label=E5 shape=plaintext]
+  { 1 2 }   -> edgegroup1 [samehead=edgegroup1]
+   edgegroup1 -> { 4 5 6 } [sametail=edgegroup1]
+  { 3 4 }   -> edgegroup2 [samehead=edgegroup2]
+   edgegroup2 -> { 7 8 } [sametail=edgegroup2]
+  { 6 }     -> edgegroup3 [samehead=edgegroup3]
+   edgegroup3 -> { 9 10 } [sametail=edgegroup3]
+  { 10 11 } -> edgegroup4 [samehead=edgegroup4]
+   edgegroup4 -> { 12 } [sametail=edgegroup4]
+  { 8 9 }   -> edgegroup5 [samehead=edgegroup5]
+   edgegroup5 -> { invis1 [style=invis shape=point width=0 height=0] } [sametail=edgegroup5]
+}
