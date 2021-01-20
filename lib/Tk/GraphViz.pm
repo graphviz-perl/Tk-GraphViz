@@ -116,6 +116,31 @@ sub _showGraphLayout
   # Display new contents
   my $layoutData = $self->_parseLayout($self->{layout}, %opt);
   $layoutData = $opt{prerender}->($layoutData) if $opt{prerender};
+print "digraph {\n";
+my @g = @{$layoutData->{subgraph}[0]};
+my @bbox = splice @g, 0, 4;
+my %gattrib = @g;
+print "  graph [bbox=\"@{[join ',', @bbox]}\", @{[join ',', map qq{$_=$gattrib{$_}}, keys %gattrib]}]\n";
+my %n = %{$layoutData->{node}};
+print map {
+  my ($name, %attr) = ($_, %{$n{$_}});
+  "  $_ [@{[join ',', map  qq{$_=\"$attr{$_}\"}, sort keys %attr]}]\n"
+} sort keys %n;
+my %e = %{$layoutData->{edge}};
+for my $s (sort keys %e) {
+  for my $t (sort keys %{$e{$s}}) {
+    for my $e (@{$e{$s}{$t}}) {
+      my %attr = %$e;
+      my ($arrows, $p) = @{ delete $attr{pos} };
+      my @points = @$p;
+      unshift @points, [ "e", @{ pop @points } ] if $arrows->{e};
+      unshift @points, [ "s", @{ shift @points } ] if $arrows->{s};
+      my $pstr = join ' ', map join(',', map /\d/ ? sprintf("%.3f", $_) : $_, @$_), @points;
+      print "  $s -> $t [@{[join ',', qq{pos=\"$pstr\"}, map  qq{$_=\"$attr{$_}\"}, sort keys %attr]}]\n";
+    }
+  }
+}
+print "}\n";
   $self->_renderGraph($layoutData);
 
   # Update scroll-region to new bounds

@@ -115,7 +115,7 @@ sub showDots {
   }
   $statusText = "Generating Tk::GraphViz Canvas for $currentFile ...";
   $mw->update;
-  $gv->show($currentFile, async => $async, prerender => \&pr);
+  $gv->show($currentFile, async => $async, prerender => \&pr, layout => 'neato');
   $statusText = $currentFile;
   $mw->Unbusy;
   $nextButton->configure(-state => @dots ? 'normal' : 'disabled');
